@@ -13,16 +13,20 @@ public:
         Angular
     };
 
-    Campus(int dimension, int posting_limit, DistanceType distance_type, size_t element_size)
-        : dimension_(dimension), posting_limit_(posting_limit), node_size_(0), distance_type_(distance_type), element_size_(element_size), entry_point_(nullptr), link_list_(nullptr) {}
+    Campus(int dimension, int posting_limit, int connection_limit, DistanceType distance_type, size_t element_size)
+        : dimension_(dimension), posting_limit_(posting_limit), connection_limit_(connection_limit), node_size_(0),
+            distance_type_(distance_type), element_size_(element_size), entry_point_(nullptr), link_list_(nullptr) {}
 
     ~Campus() {
         delete[] link_list_;
     }
 
     int getNodeSize() const { return node_size_; }
-    int getPositionLimit() const { return posting_limit_; }
+    int getPositingLimit() const { return posting_limit_; }
     int getDimension() const { return dimension_; }
+    Node *getNode(int node_id) const { return link_list_[node_id]; }
+    size_t getElementSize() const { return element_size_; }
+
     Node *findExactNearestNode(const void *query_vector, Distance *distance);
     std::vector<Node*> findNearestNodes(const void *query_vector, Distance *distance, int n);
     std::vector<int> topKSearch(const void *query_vector, int top_k, Distance *distance, int n);
@@ -35,6 +39,7 @@ public:
 private:
     const int dimension_;
     const int posting_limit_;
+    const int connection_limit_;
     int node_size_;
     size_t element_size_;
     Lock validation_lock_;
@@ -68,6 +73,14 @@ private:
     Distance *distance_;
     const void *insert_vector_;
     const int vector_id_;
+    std::vector<Version*> changed_versions_;
+    std::vector<Node*> new_nodes_; // Newly created nodes with split
+    std::vector<Version*> new_versions_; // Newly created versions without split
+    void splitCalculation(Version *spliting_version);
+    void assignCalculation(Node *new_node1, Node *new_node2);
+    void reassignCalculation(Version *spliting_version, Node *new_node1, Node *new_node2);
+    bool validation();
+    void abort();
 };
 
 class CampusQueryExecutor {

@@ -28,3 +28,14 @@ void Version::calculateCentroid() {
         reinterpret_cast<float*>(centroid)[j] /= size_;
     }
 }
+
+void Version::copyPostingFromPrevVersion() {
+    if (prev_version_ == nullptr) {
+        return;
+    }
+
+    for (int i = 0; i < prev_version_->size_; ++i) {
+        posting_[i] = new Entity(prev_version_->posting_[i]->id, prev_version_->posting_[i]->vector, dimension_, element_size_);
+    }
+    size_ = prev_version_->size_;
+}
