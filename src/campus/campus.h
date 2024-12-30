@@ -26,6 +26,7 @@ public:
     int getDimension() const { return dimension_; }
     Node *getNode(int node_id) const { return link_list_[node_id]; }
     size_t getElementSize() const { return element_size_; }
+    int getConnectionLimit() const { return connection_limit_; }
 
     Node *findExactNearestNode(const void *query_vector, Distance *distance);
     std::vector<Node*> findNearestNodes(const void *query_vector, Distance *distance, int n);
@@ -79,6 +80,8 @@ private:
     void splitCalculation(Version *spliting_version);
     void assignCalculation(Node *new_node1, Node *new_node2);
     void reassignCalculation(Version *spliting_version, Node *new_node1, Node *new_node2);
+    void connectNeighbors(Version *spliting_version, Node *new_node1, Node *new_node2, int connection_limit);
+    void updateNeighbors(Version *spliting_version, Node *new_node1, Node *new_node2, int connection_limit);
     bool validation();
     void abort();
 };

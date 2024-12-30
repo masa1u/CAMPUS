@@ -27,6 +27,8 @@ public:
     bool canAddVector() const { return size_ < max_size_; }
     void addVector(const void* vector, const int vector_id);
     void copyPostingFromPrevVersion();
+    void copyNeighborFromPrevVersion();
+    void addNeighbor(int neighbor_id) { neighbors_.push_back(neighbor_id); }
 
 private:
     const int node_id_;
@@ -39,6 +41,7 @@ private:
     std::vector<int> neighbors_;
     void *centroid;
     Entity **posting_;
+    std::vector<Version*> new_neighbors_;
 };
 
 #endif //CAMPUS_VERSION_H

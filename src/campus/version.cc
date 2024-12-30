@@ -39,3 +39,11 @@ void Version::copyPostingFromPrevVersion() {
     }
     size_ = prev_version_->size_;
 }
+
+void Version::copyNeighborFromPrevVersion() {
+    if (prev_version_ == nullptr) {
+        return;
+    }
+
+    neighbors_ = prev_version_->neighbors_;
+}
