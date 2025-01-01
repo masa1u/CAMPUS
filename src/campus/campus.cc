@@ -4,12 +4,13 @@
 #include <limits>
 #include <algorithm>
 #include <iostream>
+#include <unordered_set>
 
 
 Node *Campus::findExactNearestNode(const void *query_vector, Distance *distance) {
     Node *nearest_node = nullptr;
     float min_distance = std::numeric_limits<float>::max();
-    std::vector<bool> visited(node_size_, false);
+    std::unordered_set<Node*> visited;
 
     std::queue<Node*> node_queue;
     node_queue.push(entry_point_);
@@ -18,10 +19,10 @@ Node *Campus::findExactNearestNode(const void *query_vector, Distance *distance)
         Node *current_node = node_queue.front();
         node_queue.pop();
 
-        if (visited[current_node->getNodeId()]) {
+        if (visited.find(current_node) != visited.end()) {
             continue;
         }
-        visited[current_node->getNodeId()] = true;
+        visited.insert(current_node);
 
         Version *latest_version = current_node->getLatestVersion();
         float distance_to_query = distance->calculateDistance(static_cast<const float*>(latest_version->getCentroid()), static_cast<const float*>(query_vector), dimension_);
@@ -30,12 +31,9 @@ Node *Campus::findExactNearestNode(const void *query_vector, Distance *distance)
             nearest_node = current_node;
         }
 
-        for (int neighbor_id : current_node->getNeighbors()) {
-            if (!visited[neighbor_id]) {
-                Node *neighbor_node = link_list_[neighbor_id];
-                if (neighbor_node != nullptr) {
-                    node_queue.push(neighbor_node);
-                }
+        for (Node* neighbor_node : latest_version->getNeighbors()) {
+            if (visited.find(neighbor_node) == visited.end()) {
+                node_queue.push(neighbor_node);
             }
         }
     }
@@ -43,14 +41,12 @@ Node *Campus::findExactNearestNode(const void *query_vector, Distance *distance)
     return nearest_node;
 }
 
-
 std::vector<Node*> Campus::findNearestNodes(const void *query_vector, Distance *distance, int n) {
     std::priority_queue<std::pair<float, Node*>> pq;
-    std::vector<Node*> result;
-    std::vector<bool> visited(node_size_, false);
+    std::unordered_set<Node*> visited;
 
     if (entry_point_ == nullptr) {
-        return result;
+        return {};
     }
 
     pq.push(std::make_pair(0.0f, entry_point_));
@@ -59,35 +55,38 @@ std::vector<Node*> Campus::findNearestNodes(const void *query_vector, Distance *
         Node *current_node = pq.top().second;
         pq.pop();
 
-        if (visited[current_node->getNodeId()]) {
+        if (visited.find(current_node) != visited.end()) {
             continue;
         }
-        visited[current_node->getNodeId()] = true;
+        visited.insert(current_node);
 
         Version *latest_version = current_node->getLatestVersion();
         float current_distance = distance->calculateDistance(static_cast<const float*>(latest_version->getCentroid()), static_cast<const float*>(query_vector), dimension_);
-        result.push_back(current_node);
-        if (result.size() >= n) {
-            break;
+
+        if (pq.size() < n) {
+            pq.push(std::make_pair(current_distance, current_node));
+        } else if (current_distance < pq.top().first) {
+            pq.pop();
+            pq.push(std::make_pair(current_distance, current_node));
         }
 
         // Explore neighbors
-        for (int neighbor_id : current_node->getNeighbors()) {
-            if (!visited[neighbor_id]) {
-                Node *neighbor_node = link_list_[neighbor_id];
-                if (neighbor_node != nullptr) {
-                    Version *neighbor_version = neighbor_node->getLatestVersion();
-                    float neighbor_distance = distance->calculateDistance(static_cast<const float*>(neighbor_version->getCentroid()), static_cast<const float*>(query_vector), dimension_);
-                    pq.push(std::make_pair(neighbor_distance, neighbor_node));
-                }
+        for (Node* neighbor_node : latest_version->getNeighbors()) {
+            if (visited.find(neighbor_node) == visited.end()) {
+                pq.push(std::make_pair(current_distance, neighbor_node));
             }
         }
+    }
+
+    std::vector<Node*> result;
+    while (!pq.empty()) {
+        result.push_back(pq.top().second);
+        pq.pop();
     }
 
     std::reverse(result.begin(), result.end());
     return result;
 }
-
 
 std::vector<int> Campus::topKSearch(const void *query_vector, int top_k, Distance *distance, int n) {
     std::vector<Node*> nearest_nodes = findNearestNodes(query_vector, distance, n);
@@ -115,7 +114,7 @@ std::vector<int> Campus::topKSearch(const void *query_vector, int top_k, Distanc
 
 std::vector<int> Campus::getAllVectorIds() {
     std::vector<int> all_ids;
-    std::vector<bool> visited(node_size_, false);
+    std::unordered_set<Node*> visited;
 
     std::queue<Node*> node_queue;
     node_queue.push(entry_point_);
@@ -124,22 +123,20 @@ std::vector<int> Campus::getAllVectorIds() {
         Node *current_node = node_queue.front();
         node_queue.pop();
 
-        if (visited[current_node->getNodeId()]) {
+        if (visited.find(current_node) != visited.end()) {
             continue;
         }
-        visited[current_node->getNodeId()] = true;
+        visited.insert(current_node);
 
         Version *latest_version = current_node->getLatestVersion();
         for (Entity *entity : latest_version->getPosting()) {
             all_ids.push_back(entity->id);
         }
 
-        for (int neighbor_id : current_node->getNeighbors()) {
-            if (!visited[neighbor_id]) {
-                Node *neighbor_node = link_list_[neighbor_id];
-                if (neighbor_node != nullptr) {
-                    node_queue.push(neighbor_node);
-                }
+        for (Version* neighbor_version : latest_version->getNeighbors()) {
+            Node *neighbor_node = neighbor_version->getNode();
+            if (visited.find(neighbor_node) == visited.end()) {
+                node_queue.push(neighbor_node);
             }
         }
     }
@@ -148,19 +145,23 @@ std::vector<int> Campus::getAllVectorIds() {
 }
 
 void Campus::addNodeToGraph(Node *new_node) {
-    if (link_list_ == nullptr) {
-        link_list_ = new Node*[posting_limit_];
-        for (int i = 0; i < posting_limit_; ++i) {
-            link_list_[i] = nullptr;
-        }
-    }
-
-    for (int i = 0; i < posting_limit_; ++i) {
-        if (link_list_[i] == nullptr) {
-            link_list_[i] = new_node;
-            break;
-        }
-    }
+    link_list_[node_size_] = new_node;
     entry_point_ = new_node;
     node_size_++;
+}
+
+void Campus::resizeLinkList() {
+    int new_capacity = (link_list_capacity_ == 0) ? 1 : link_list_capacity_ * 2;
+    Node **new_link_list = static_cast<Node**>(malloc(new_capacity * sizeof(Node*)));
+    for (int i = 0; i < node_size_; ++i) {
+        new_link_list[i] = link_list_[i];
+    }
+    free(link_list_);
+    link_list_ = new_link_list;
+    link_list_capacity_ = new_capacity;
+}
+
+void Campus::switchVersion(Node *node, Version *new_version) {
+    node->switchVersion(new_version);
+    // latest_versionを更新していく作業
 }

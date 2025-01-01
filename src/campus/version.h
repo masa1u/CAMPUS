@@ -3,45 +3,54 @@
 
 #include "entity.h"
 #include <vector>
+#include <algorithm>
 
 class Version {
 public:
-    Version(int node_id, int version, Version *prev_version, int max_size, int dimension, size_t element_size)
-        : node_id_(node_id), version_(version), prev_version_(prev_version), max_size_(max_size), size_(0),
-            dimension_(dimension), element_size_(element_size) {posting_ = new Entity*[max_size_];}
+    Version(int version, Node *node, Version *prev_version, int max_num, int dimension, size_t element_size)
+        : version_(version), node_(node), prev_version_(prev_version), max_num_(max_num), vector_num_(0),
+            dimension_(dimension), element_size_(element_size) {
+        posting_ = new Entity*[max_num_];
+        centroid = new char[dimension_ * element_size_];
+    }
 
     ~Version() {
-        for (int i = 0; i < size_; ++i) {
+        for (int i = 0; i < vector_num_; ++i) {
             delete posting_[i];
         }
         delete[] posting_;
+        delete[] static_cast<char*>(centroid);
     }
 
-    int getNodeID() const { return node_id_; }
     int getVersion() const { return version_; }
-    int getSize() const { return size_; }
+    Node *getNode() const { return node_; }
+    int getVectorNum() const { return vector_num_; }
     const void* getCentroid() const { return centroid; }
-    std::vector<int> getNeighbors() const { return neighbors_; }
+    std::vector<Node*> getNeighbors() const { return neighbors_; }
     Entity **getPosting() const { return posting_; }
     void calculateCentroid();
-    bool canAddVector() const { return size_ < max_size_; }
+    bool canAddVector() const { return vector_num_ < max_num_; }
     void addVector(const void* vector, const int vector_id);
+    void deleteVector(int vector_id);
     void copyPostingFromPrevVersion();
     void copyNeighborFromPrevVersion();
-    void addNeighbor(int neighbor_id) { neighbors_.push_back(neighbor_id); }
+    void addNeighbor(Node* neighbor) { neighbors_.push_back(neighbor); }
+    void deleteNeighbor(Node* neighbor) {
+        neighbors_.erase(std::remove(neighbors_.begin(), neighbors_.end(), neighbor), neighbors_.end());
+    }
 
 private:
-    const int node_id_;
     const int version_;
+    Node *node_;
     Version *prev_version_;
-    const int max_size_;
-    int size_;
-    int dimension_;
-    size_t element_size_;
-    std::vector<int> neighbors_;
+    const int max_num_;
+    int vector_num_;
+    const int dimension_;
+    int updater_id_;
+    const size_t element_size_;
+    std::vector<Node*> neighbors_;
     void *centroid;
     Entity **posting_;
-    std::vector<Version*> new_neighbors_;
 };
 
 #endif //CAMPUS_VERSION_H

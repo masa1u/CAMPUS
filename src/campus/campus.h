@@ -15,16 +15,15 @@ public:
 
     Campus(int dimension, int posting_limit, int connection_limit, DistanceType distance_type, size_t element_size)
         : dimension_(dimension), posting_limit_(posting_limit), connection_limit_(connection_limit), node_size_(0),
-            distance_type_(distance_type), element_size_(element_size), entry_point_(nullptr), link_list_(nullptr) {}
+            distance_type_(distance_type), element_size_(element_size), entry_point_(nullptr){}
 
     ~Campus() {
-        delete[] link_list_;
+
     }
 
-    int getNodeSize() const { return node_size_; }
+    int getNodeNum() const { return node_num_; }
     int getPositingLimit() const { return posting_limit_; }
     int getDimension() const { return dimension_; }
-    Node *getNode(int node_id) const { return link_list_[node_id]; }
     size_t getElementSize() const { return element_size_; }
     int getConnectionLimit() const { return connection_limit_; }
 
@@ -36,17 +35,19 @@ public:
     bool validationLock() { return validation_lock_.w_trylock(); }
     void validationUnlock() { return validation_lock_.w_unlock(); }
     void addNodeToGraph(Node *new_node);
+    void switchVersion(Node *node, Version *new_version);
 
 private:
     const int dimension_;
     const int posting_limit_;
     const int connection_limit_;
-    int node_size_;
+    int node_num_;
+    int update_counter_;
     size_t element_size_;
     Lock validation_lock_;
     Node *entry_point_;
-    Node **link_list_;
     DistanceType distance_type_;
+
 };
 
 class CampusInsertExecutor {
@@ -74,7 +75,7 @@ private:
     Distance *distance_;
     const void *insert_vector_;
     const int vector_id_;
-    std::vector<Version*> changed_versions_;
+    std::vector<Node*> changed_nodes_;
     std::vector<Node*> new_nodes_; // Newly created nodes with split
     std::vector<Version*> new_versions_; // Newly created versions without split
     void splitCalculation(Version *spliting_version);
@@ -106,11 +107,11 @@ public:
 
     std::vector<int> query();
 
-private:
-    Campus *campus_;
-    const void *query_vector_;
-    const int top_k_;
-    Distance *distance_;
+    private:
+        Campus *campus_;
+        const void *query_vector_;
+        const int top_k_;
+        Distance *distance_;
 };
 
-#endif //CAMPUS_H
+#endif // CAMPUS_H
