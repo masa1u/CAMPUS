@@ -14,7 +14,7 @@ public:
     };
 
     Campus(int dimension, int posting_limit, int connection_limit, DistanceType distance_type, size_t element_size)
-        : dimension_(dimension), posting_limit_(posting_limit), connection_limit_(connection_limit), node_size_(0),
+        : dimension_(dimension), posting_limit_(posting_limit), connection_limit_(connection_limit), node_num_(0),
             distance_type_(distance_type), element_size_(element_size), entry_point_(nullptr){}
 
     ~Campus() {
@@ -36,6 +36,7 @@ public:
     void validationUnlock() { return validation_lock_.w_unlock(); }
     void addNodeToGraph(Node *new_node);
     void switchVersion(Node *node, Version *new_version);
+    void setEntryPoint(Node *node) { entry_point_ = node; }
 
 private:
     const int dimension_;

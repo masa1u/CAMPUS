@@ -1,4 +1,5 @@
 #include "version.h"
+#include "node.h"
 #include <cstring>
 
 void Version::calculateCentroid() {
@@ -50,7 +51,11 @@ void Version::copyPostingFromPrevVersion() {
 }
 
 void Version::copyNeighborFromPrevVersion() {
-    if (prev_version_ != nullptr) {
-        neighbors_ = prev_version_->getNeighbors();
+    // prev_version_からin_neighbors_とout_neighbors_をコピー
+    for (Node* neighbor : prev_version_->getInNeighbors()) {
+        addInNeighbor(neighbor);
+    }
+    for (Node* neighbor : prev_version_->getOutNeighbors()) {
+        addOutNeighbor(neighbor);
     }
 }

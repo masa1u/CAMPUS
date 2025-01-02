@@ -26,7 +26,8 @@ public:
     Node *getNode() const { return node_; }
     int getVectorNum() const { return vector_num_; }
     const void* getCentroid() const { return centroid; }
-    std::vector<Node*> getNeighbors() const { return neighbors_; }
+    std::vector<Node*> getInNeighbors() const { return in_neighbors_; }
+    std::vector<Node*> getOutNeighbors() const { return out_neighbors_; }
     Entity **getPosting() const { return posting_; }
     void calculateCentroid();
     bool canAddVector() const { return vector_num_ < max_num_; }
@@ -34,9 +35,16 @@ public:
     void deleteVector(int vector_id);
     void copyPostingFromPrevVersion();
     void copyNeighborFromPrevVersion();
-    void addNeighbor(Node* neighbor) { neighbors_.push_back(neighbor); }
-    void deleteNeighbor(Node* neighbor) {
-        neighbors_.erase(std::remove(neighbors_.begin(), neighbors_.end(), neighbor), neighbors_.end());
+    void copyCentroidFromPrevVersion() {
+        std::memcpy(centroid, prev_version_->getCentroid(), dimension_ * element_size_);
+    }
+    void addInNeighbor(Node* neighbor) { in_neighbors_.push_back(neighbor); }
+    void deleteInNeighbor(Node* neighbor) {
+        in_neighbors_.erase(std::remove(in_neighbors_.begin(), in_neighbors_.end(), neighbor), in_neighbors_.end());
+    }
+    void addOutNeighbor(Node* neighbor) { out_neighbors_.push_back(neighbor); }
+    void deleteOutNeighbor(Node* neighbor) {
+        out_neighbors_.erase(std::remove(out_neighbors_.begin(), out_neighbors_.end(), neighbor), out_neighbors_.end());
     }
 
 private:
@@ -48,7 +56,8 @@ private:
     const int dimension_;
     int updater_id_;
     const size_t element_size_;
-    std::vector<Node*> neighbors_;
+    std::vector<Node*> in_neighbors_;
+    std::vector<Node*> out_neighbors_;
     void *centroid;
     Entity **posting_;
 };
