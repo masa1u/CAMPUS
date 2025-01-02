@@ -313,6 +313,48 @@ void CampusInsertExecutor::reassignCalculation(Version *spliting_version, Node *
                     if (new_node1->getLatestVersion()->canAddVector()) {
                         new_node1->getLatestVersion()->addVector(vector, posting[i]->id);
                     } else {
+                        // new_versions_からnew_node1のVersionを削除、changed_nodes_に追加
+                        // Nodeのarchivedをtrueに設定
+
+                        splitCalculation(new_node1->getLatestVersion());
+                    }
+                } else {
+                    if (new_node2->getLatestVersion()->canAddVector()) {
+                        new_node2->getLatestVersion()->addVector(vector, posting[i]->id);
+                    } else {
+                        splitCalculation(new_node2->getLatestVersion());
+                    }
+                }
+            }
+        }
+    }
+    std::vector<Node*> in_neighbors = spliting_version->getInNeighbors();
+    for (Node* neighbor_node : in_neighbors){
+        Version *neighbor = nullptr;
+        for (Version *existing_version : new_versions_) {
+            if (existing_version->getNode() == neighbor_node) {
+                neighbor = existing_version;
+                break;
+            }
+        }
+        assert(neighbor != nullptr);
+
+        Entity **posting = neighbor->getPosting();
+        for (int i = 0; i < neighbor->getVectorNum(); ++i) {
+            const void *vector = posting[i]->getVector();
+            const void *old_centroid = neighbor_node->getLatestVersion()->getCentroid();
+            const void *new_centroid1 = new_node1->getLatestVersion()->getCentroid();
+            const void *new_centroid2 = new_node2->getLatestVersion()->getCentroid();
+            float old_distance = distance_->calculateDistance(vector, old_centroid, campus_->getDimension());
+            float new_distance1 = distance_->calculateDistance(vector, new_centroid1, campus_->getDimension());
+            float new_distance2 = distance_->calculateDistance(vector, new_centroid2, campus_->getDimension());
+            if (old_distance < new_distance1 && old_distance < new_distance2) {
+                continue;
+            } else {
+                if (new_distance1 < new_distance2) {
+                    if (new_node1->getLatestVersion()->canAddVector()) {
+                        new_node1->getLatestVersion()->addVector(vector, posting[i]->id);
+                    } else {
                         splitCalculation(new_node1->getLatestVersion());
                     }
                 } else {
