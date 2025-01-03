@@ -1,13 +1,23 @@
 #include "campus.h"
 #include <cassert>
+#include <iostream>
 
 
 void CampusInsertExecutor::insert(){
+RETRY:
     // If the campus is empty, create a new node and set it as the entry point
     if (campus_->getNodeNum() == 0) { 
         Node *new_node = new Node(campus_->getPositingLimit(),
             campus_->getDimension(), sizeof(float));
-        while (!campus_->validationLock()) {}
+        if (!campus_->validationLock()) {
+            goto RETRY;
+        }
+        if(!campus_->getNodeNum() == 0){
+            campus_->validationUnlock();
+            delete new_node;
+            goto RETRY;
+        }
+        std::cout << "Inserting the first vector" << std::endl;
         campus_->setEntryPoint(new_node);
         campus_->incrementNodeNum();
         Version *latest_version = new_node->getLatestVersion();
@@ -28,26 +38,36 @@ void CampusInsertExecutor::insert(){
             new_version->copyNeighborFromPrevVersion();
             new_version->addVector(insert_vector_, vector_id_);
             new_versions_.push_back(new_version);
+            std::cout << "just added a vector to the nearest node" << std::endl;
         }else{
             // Need to split
             splitCalculation(latest_version);
+            std::cout << "Splitting the nearest node" << std::endl;
+        }
+
+        while(!campus_->validationLock()) {}
+        if (validation()){
+            if (new_nodes_.empty()) {
+                campus_->setEntryPoint(nearest_node);
+                campus_->validationUnlock();
+                return;
+            }else{
+                // new_nodes_から1つランダムに選択し、entry_point_として設定
+                int random_index = rand() % new_nodes_.size();
+                campus_->setEntryPoint(new_nodes_[random_index]);
+                campus_->validationUnlock();
+                return;
+            }
+        }else{
+            campus_->validationUnlock();
+            std::cout << "Validation failed. Retry." << std::endl;
+            abort();
+            return;
         }
     }
 
-    while(!campus_->validationLock()) {}
-    if (validation()){
-        // new_nodes_から1つランダムに選択し、entry_point_として設定
-        int random_index = rand() % new_nodes_.size();
-        campus_->setEntryPoint(new_nodes_[random_index]);
-        campus_->validationUnlock();
-    }else{
-        campus_->validationUnlock();
-        abort();
-        return;
-    }
-
-    
 }
+
 
 void CampusInsertExecutor::splitCalculation(Version *spliting_version){
     Node *new_node1 = new Node(campus_->getPositingLimit(),

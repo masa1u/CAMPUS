@@ -7,11 +7,31 @@
 #include <algorithm>
 #include <thread>
 #include <chrono>
-#include <hdf5.h>
+// #include <hdf5.h>
 
-// HDF5ファイルからデータセットを読み込む関数
+// データをL2正規化する関数
+void normalizeDataset(std::vector<std::vector<float>> &dataset) {
+    for (auto &vec : dataset) {
+        float norm = 0.0f;
+        for (const auto &value : vec) {
+            norm += value * value; // L2ノルムの計算
+        }
+        norm = std::sqrt(norm);
+
+        // ノルムが0の場合を回避
+        if (norm > 0) {
+            for (auto &value : vec) {
+                value /= norm; // 各要素をノルムで割る
+            }
+        }
+    }
+}
+
+// HDF5ファイルからデータセットを読み込み、L2正規化する関数
+/*
 std::vector<std::vector<float>> loadDataset(const std::string &file_path, const std::string &dataset_name) {
     std::vector<std::vector<float>> dataset;
+
     hid_t file_id = H5Fopen(file_path.c_str(), H5F_ACC_RDONLY, H5P_DEFAULT);
     if (file_id < 0) {
         std::cerr << "Error opening file: " << file_path << std::endl;
@@ -42,18 +62,49 @@ std::vector<std::vector<float>> loadDataset(const std::string &file_path, const 
         return dataset;
     }
 
-    dataset.resize(dims[0], std::vector<float>(dims[1]));
-    if (H5Dread(dataset_id, H5T_NATIVE_FLOAT, H5S_ALL, H5S_ALL, H5P_DEFAULT, dataset[0].data()) < 0) {
+    // フラットな配列を準備
+    std::vector<float> flat_data(dims[0] * dims[1]);
+
+    // HDF5データを読み込み
+    if (H5Dread(dataset_id, H5T_NATIVE_FLOAT, H5S_ALL, H5S_ALL, H5P_DEFAULT, flat_data.data()) < 0) {
         std::cerr << "Error reading dataset: " << dataset_name << std::endl;
+    }
+
+    // 2次元ベクトルに変換
+    dataset.resize(dims[0], std::vector<float>(dims[1]));
+    for (hsize_t i = 0; i < dims[0]; ++i) {
+        std::copy(flat_data.begin() + i * dims[1], flat_data.begin() + (i + 1) * dims[1], dataset[i].begin());
     }
 
     H5Sclose(dataspace_id);
     H5Dclose(dataset_id);
     H5Fclose(file_id);
 
+    // データセットを正規化
+    normalizeDataset(dataset);
+
+    return dataset;
+}
+*/
+
+// 乱数でデータセットを生成する関数
+std::vector<std::vector<float>> generateRandomDataset(size_t num_vectors, size_t dimension) {
+    std::vector<std::vector<float>> dataset(num_vectors, std::vector<float>(dimension));
+    std::srand(static_cast<unsigned int>(std::time(nullptr)));
+
+    for (auto &vec : dataset) {
+        for (auto &value : vec) {
+            value = static_cast<float>(std::rand()) / RAND_MAX;
+        }
+    }
+
+    // データセットを正規化
+    normalizeDataset(dataset);
+
     return dataset;
 }
 
+// ベクトルを挿入する関数
 void insertVectors(Campus *campus, const std::vector<std::vector<float>> &vectors, int start, int end) {
     for (int i = start; i < end; ++i) {
         CampusInsertExecutor insert_executor(campus, static_cast<const void*>(vectors[i].data()), i);
@@ -68,13 +119,19 @@ int main(int argc, char *argv[]) {
     }
 
     int num_threads = std::stoi(argv[1]);
-    std::string dataset_path = argv[2];
+    // std::string dataset_path = argv[2];
 
     Campus::DistanceType distance_type = Campus::L2; // または Campus::Angular
-    Campus campus(128, 100, 10, distance_type, sizeof(float));
+    Campus campus(128, 10, 10, distance_type, sizeof(float));
 
-    // データセットを読み込む
-    std::vector<std::vector<float>> vectors = loadDataset(dataset_path, "/train");
+    // データセットを生成（L2正規化を含む）
+    // std::vector<std::vector<float>> vectors = loadDataset(dataset_path, "/train");
+    std::vector<std::vector<float>> vectors = generateRandomDataset(1000, 128);
+
+    if (vectors.size() == 0 || vectors[0].size() != 128) {
+        std::cerr << "Invalid dataset dimensions or empty dataset." << std::endl;
+        return 1;
+    }
 
     // 先頭の1000件だけを使う
     if (vectors.size() > 1000) {
@@ -103,6 +160,7 @@ int main(int argc, char *argv[]) {
               << elapsed.count() << " seconds.\n";
     std::cout << "Throughput: " << vectors.size() / elapsed.count() << " vectors/second\n";
     std::cout << "Latency: " << elapsed.count() / vectors.size() << " seconds/vector\n";
+    std::cout << "Node num: " << campus.getNodeNum() << std::endl;
 
     return 0;
 }
