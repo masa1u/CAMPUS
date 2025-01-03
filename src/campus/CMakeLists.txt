@@ -4,7 +4,6 @@ add_library(campus
     campus.h
     entity.h
     insert.cc
-    node.cc
     node.h
     query.cc
     version.cc

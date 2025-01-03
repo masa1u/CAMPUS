@@ -2,3 +2,4 @@
 Dockerfile
 docker-compose.yml
 build/
+.DS_Store
