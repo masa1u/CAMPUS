@@ -11,9 +11,14 @@ public:
             latest_version_(new Version(0, this, nullptr, max_posting_size, dimension, element_size)) {};
 
     Version *getLatestVersion() const { return latest_version_; }
+    Node *getPrevNode() const { return prev_node_; }
     bool isArchived() const { return archived_; }
     void addNeighbor(int neighbor_id);
     void setPrevNode(Node *prev_node) { prev_node_ = prev_node; }
+    void setArchived() { archived_ = true; }
+    void switchVersion(Version *new_version){
+        latest_version_ = new_version;
+    };
     std::vector<int> getNeighbors() const;
 
 private:

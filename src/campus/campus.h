@@ -15,13 +15,14 @@ public:
 
     Campus(int dimension, int posting_limit, int connection_limit, DistanceType distance_type, size_t element_size)
         : dimension_(dimension), posting_limit_(posting_limit), connection_limit_(connection_limit), node_num_(0),
-            distance_type_(distance_type), element_size_(element_size), entry_point_(nullptr){}
+            update_counter_(0), distance_type_(distance_type), element_size_(element_size), entry_point_(nullptr){}
 
     ~Campus() {
 
     }
 
     int getNodeNum() const { return node_num_; }
+    int getUpdateCounter() { return update_counter_++;}
     int getPositingLimit() const { return posting_limit_; }
     int getDimension() const { return dimension_; }
     size_t getElementSize() const { return element_size_; }
@@ -30,13 +31,12 @@ public:
     Node *findExactNearestNode(const void *query_vector, Distance *distance);
     std::vector<Node*> findNearestNodes(const void *query_vector, Distance *distance, int n);
     std::vector<int> topKSearch(const void *query_vector, int top_k, Distance *distance, int n);
-    std::vector<int> getAllVectorIds(); // for Debug
     DistanceType getDistanceType() const { return distance_type_; }
     bool validationLock() { return validation_lock_.w_trylock(); }
     void validationUnlock() { return validation_lock_.w_unlock(); }
-    void addNodeToGraph(Node *new_node);
     void switchVersion(Node *node, Version *new_version);
     void setEntryPoint(Node *node) { entry_point_ = node; }
+    void incrementNodeNum() { node_num_++; }
 
 private:
     const int dimension_;
@@ -76,7 +76,8 @@ private:
     Distance *distance_;
     const void *insert_vector_;
     const int vector_id_;
-    std::vector<Node*> changed_nodes_;
+    std::vector<Version*> changed_versions_;
+    // std::vector<Node*> changed_nodes_;
     std::vector<Node*> new_nodes_; // Newly created nodes with split
     std::vector<Version*> new_versions_; // Newly created versions without split
     void splitCalculation(Version *spliting_version);
@@ -85,6 +86,7 @@ private:
     void connectNeighbors(Version *spliting_version, Node *new_node1, Node *new_node2, int connection_limit);
     void updateNeighbors(Version *spliting_version, Node *new_node1, Node *new_node2, int connection_limit);
     bool validation();
+    void commit();
     void abort();
 };
 

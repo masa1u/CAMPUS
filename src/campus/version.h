@@ -5,6 +5,8 @@
 #include <vector>
 #include <algorithm>
 
+class Node;
+
 class Version {
 public:
     Version(int version, Node *node, Version *prev_version, int max_num, int dimension, size_t element_size)
@@ -46,6 +48,7 @@ public:
     void deleteOutNeighbor(Node* neighbor) {
         out_neighbors_.erase(std::remove(out_neighbors_.begin(), out_neighbors_.end(), neighbor), out_neighbors_.end());
     }
+    void setUpdaterId(int updater_id) { updater_id_ = updater_id; }
 
 private:
     const int version_;

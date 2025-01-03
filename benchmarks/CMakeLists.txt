@@ -1,7 +1,7 @@
-# Create an executable for the benchmark
-add_executable(bench_campus
-    bench_campus.cc
-)
+# benchmarks/CMakeLists.txt
 
-# Link the campus library
+add_executable(bench_campus bench_campus.cc)
+
+# HDF5 ライブラリをリンク
+target_link_libraries(bench_campus ${HDF5_LIBRARIES})
 target_link_libraries(bench_campus campus)
