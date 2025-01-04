@@ -2,6 +2,7 @@
 #include "node.h"
 #include <cstring>
 
+
 void Version::calculateCentroid() {
     if (vector_num_ == 0) {
         std::memset(centroid, 0, dimension_ * element_size_);
