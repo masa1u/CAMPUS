@@ -17,7 +17,6 @@ RETRY:
             delete new_node;
             goto RETRY;
         }
-        std::cout << "Inserting the first vector" << std::endl;
         campus_->setEntryPoint(new_node);
         campus_->incrementNodeNum();
         Version *latest_version = new_node->getLatestVersion();
@@ -25,7 +24,7 @@ RETRY:
         latest_version->calculateCentroid();
         campus_->validationUnlock();
         return;
-    }else{
+    } else {
         // Find the nearest node to the insert_vector_
         Node *nearest_node = campus_->findExactNearestNode(insert_vector_, distance_);
         Version *latest_version = nearest_node->getLatestVersion();
@@ -36,33 +35,33 @@ RETRY:
                 latest_version, campus_->getPositingLimit(), campus_->getDimension(), campus_->getElementSize());
             new_version->copyPostingFromPrevVersion();
             new_version->copyNeighborFromPrevVersion();
+            new_version->copyCentroidFromPrevVersion();
             new_version->addVector(insert_vector_, vector_id_);
             new_versions_.push_back(new_version);
-            std::cout << "just added a vector to the nearest node" << std::endl;
-        }else{
+        } else {
             // Need to split
             splitCalculation(latest_version);
-            std::cout << "Splitting the nearest node" << std::endl;
         }
 
         while(!campus_->validationLock()) {}
         if (validation()){
+            commit();
             if (new_nodes_.empty()) {
                 campus_->setEntryPoint(nearest_node);
                 campus_->validationUnlock();
                 return;
-            }else{
+            } else {
                 // new_nodes_から1つランダムに選択し、entry_point_として設定
                 int random_index = rand() % new_nodes_.size();
                 campus_->setEntryPoint(new_nodes_[random_index]);
                 campus_->validationUnlock();
                 return;
             }
-        }else{
+        } else {
+            std::cerr << "Validation failed. Retry." << std::endl;
             campus_->validationUnlock();
-            std::cout << "Validation failed. Retry." << std::endl;
             abort();
-            return;
+            goto RETRY;
         }
     }
 
@@ -173,6 +172,9 @@ void CampusInsertExecutor::connectNeighbors(Version *spliting_version, Node *new
         float max_distance = 0;
         Version* farthest_version = nullptr;
         for (Node* neighbor_node : neighbors1) {
+            if (neighbor_node == new_node2) {
+                continue;
+            }
             Version *neighbor_version = nullptr;
             for (Version *existing_version : new_versions_) {
                 if (existing_version->getNode() == neighbor_node) {
@@ -197,6 +199,9 @@ void CampusInsertExecutor::connectNeighbors(Version *spliting_version, Node *new
         float max_distance = 0;
         Version* farthest_version = nullptr;
         for (Node* neighbor_node : neighbors2) {
+            if (neighbor_node == new_node1) {
+                continue;
+            }
             Version *neighbor_version = nullptr;
             for (Version *existing_version : new_versions_) {
                 if (existing_version->getNode() == neighbor_node) {
@@ -226,6 +231,7 @@ void CampusInsertExecutor::connectNeighbors(Version *spliting_version, Node *new
         new_node2->getLatestVersion()->addOutNeighbor(neighbor_node);
     }
 }
+
 
 
 void CampusInsertExecutor::updateNeighbors(Version *spliting_version, Node *new_node1, Node *new_node2, int connection_limit) {
@@ -325,6 +331,9 @@ void CampusInsertExecutor::reassignCalculation(Version *spliting_version, Node *
             float min_distance = new_distance1;
             Version *closest_version = new_node1->getLatestVersion();
             for (Node *neighbor_node : new_node1->getLatestVersion()->getOutNeighbors()) {
+                if (neighbor_node == new_node2) {
+                    continue;
+                }
                 Version *neighbor = nullptr;
                 for (Version *existing_version : new_versions_) {
                     if (existing_version->getNode() == neighbor_node) {
@@ -368,6 +377,9 @@ void CampusInsertExecutor::reassignCalculation(Version *spliting_version, Node *
             float min_distance = new_distance2;
             Version *closest_version = new_node2->getLatestVersion();
             for (Node *neighbor_node : new_node2->getLatestVersion()->getOutNeighbors()) {
+                if (neighbor_node == new_node1) {
+                    continue;
+                }
                 Version *neighbor = nullptr;
                 for (Version *existing_version : new_versions_) {
                     if (existing_version->getNode() == neighbor_node) {
@@ -466,21 +478,22 @@ bool CampusInsertExecutor::validation(){
 void CampusInsertExecutor::commit(){
     int updater_id = campus_->getUpdateCounter();
     for (Node *node : new_nodes_) {
-        node->getPrevNode()->setArchived();
+        if (node->getPrevNode() != nullptr) {
+            node->getPrevNode()->setArchived();
+        }
+        node->getLatestVersion()->setUpdaterId(updater_id);
         campus_->incrementNodeNum();
+        
     }
     for (Version *version : new_versions_) {
         campus_->switchVersion(version->getNode(), version);
         version->setUpdaterId(updater_id);
     }
-    for (Node *node : new_nodes_) {
-        node->getLatestVersion()->setUpdaterId(updater_id);
-    }
+
 }
 
 void CampusInsertExecutor::abort(){
     changed_versions_.clear();
     new_nodes_.clear();
     new_versions_.clear();
-    insert();
 }

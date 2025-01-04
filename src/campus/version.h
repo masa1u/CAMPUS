@@ -4,6 +4,7 @@
 #include "entity.h"
 #include <vector>
 #include <algorithm>
+#include <iostream>
 
 class Node;
 
@@ -25,9 +26,10 @@ public:
     }
 
     int getVersion() const { return version_; }
+    Version *getPrevVersion() const { return prev_version_; }
     Node *getNode() const { return node_; }
     int getVectorNum() const { return vector_num_; }
-    const void* getCentroid() const { return centroid; }
+    void* getCentroid() const { return centroid; }
     std::vector<Node*> getInNeighbors() const { return in_neighbors_; }
     std::vector<Node*> getOutNeighbors() const { return out_neighbors_; }
     Entity **getPosting() const { return posting_; }
@@ -37,8 +39,16 @@ public:
     void deleteVector(int vector_id);
     void copyPostingFromPrevVersion();
     void copyNeighborFromPrevVersion();
+    // void copyCentroidFromPrevVersion() {
+    //     std::memcpy(centroid, prev_version_->getCentroid(), dimension_ * element_size_);
+    //     // centroid = prev_version_->getCentroid();
+    // }
     void copyCentroidFromPrevVersion() {
-        std::memcpy(centroid, prev_version_->getCentroid(), dimension_ * element_size_);
+        if (prev_version_ != nullptr && prev_version_->getCentroid() != nullptr) {
+            std::memcpy(centroid, prev_version_->getCentroid(), dimension_ * element_size_);
+        } else {
+            std::cerr << "Error: Invalid prev_version_ or prev_version_->getCentroid() in Version::copyCentroidFromPrevVersion()" << std::endl;
+        }
     }
     void addInNeighbor(Node* neighbor) { in_neighbors_.push_back(neighbor); }
     void deleteInNeighbor(Node* neighbor) {

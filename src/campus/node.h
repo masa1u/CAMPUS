@@ -3,6 +3,7 @@
 
 #include "version.h"
 #include <vector>
+#include <cassert>
 
 class Node {
 public:
