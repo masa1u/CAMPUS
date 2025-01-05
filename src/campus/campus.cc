@@ -17,6 +17,7 @@ Node *Campus::findExactNearestNode(const void *query_vector, Distance *distance)
 
     while (!node_queue.empty()) {
         Node *current_node = node_queue.front();
+        assert(current_node->isArchived() == false);
         node_queue.pop();
 
         if (visited.find(current_node) != visited.end()) {

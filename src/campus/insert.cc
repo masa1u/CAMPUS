@@ -43,6 +43,7 @@ RETRY:
             splitCalculation(latest_version);
         }
 
+
         while(!campus_->validationLock()) {}
         if (validation()){
             commit();
@@ -58,7 +59,6 @@ RETRY:
                 return;
             }
         } else {
-            std::cerr << "Validation failed. Retry." << std::endl;
             campus_->validationUnlock();
             abort();
             goto RETRY;
@@ -91,10 +91,11 @@ void CampusInsertExecutor::splitCalculation(Version *spliting_version){
         }
     }
 
-   assignCalculation(new_node1, new_node2);
-   connectNeighbors(spliting_version, new_node1, new_node2, campus_->getConnectionLimit());
-   updateNeighbors(spliting_version, new_node1, new_node2, campus_->getConnectionLimit());
-   reassignCalculation(spliting_version, new_node1, new_node2);
+
+    assignCalculation(new_node1, new_node2);
+    connectNeighbors(spliting_version, new_node1, new_node2, campus_->getConnectionLimit());
+    updateNeighbors(spliting_version, new_node1, new_node2, campus_->getConnectionLimit());
+    reassignCalculation(spliting_version, new_node1, new_node2);
 }
 
 void CampusInsertExecutor::assignCalculation(Node *new_node1, Node *new_node2) {
@@ -151,11 +152,12 @@ void CampusInsertExecutor::connectNeighbors(Version *spliting_version, Node *new
             }
         }
         if (!already_updated) {
-            new_version = new Version(neighbor_node->getLatestVersion()->getVersion() + 1,
-                neighbor_node->getLatestVersion()->getNode(), neighbor_node->getLatestVersion(),
+            Version *changed_version = neighbor_node->getLatestVersion();
+            new_version = new Version(changed_version->getVersion() + 1,
+                changed_version->getNode(), changed_version,
                 campus_->getPositingLimit(), campus_->getDimension(), campus_->getElementSize());
             new_versions_.push_back(new_version);
-            changed_versions_.push_back(neighbor_node->getLatestVersion());
+            changed_versions_.push_back(changed_version);
             // TODO: copy関数の統合の検討
             new_version->copyNeighborFromPrevVersion();
             new_version->copyPostingFromPrevVersion();
@@ -163,6 +165,9 @@ void CampusInsertExecutor::connectNeighbors(Version *spliting_version, Node *new
         }
         new_version->addInNeighbor(new_node1);
         new_version->addInNeighbor(new_node2);
+        new_version->deleteInNeighbor(spliting_version->getNode());
+
+        // in側からはdeleteしているけど、out側でdeleteしていない？
     }
     neighbors1.push_back(new_node2);
     neighbors2.push_back(new_node1);
@@ -191,6 +196,7 @@ void CampusInsertExecutor::connectNeighbors(Version *spliting_version, Node *new
                 farthest_version = neighbor_version;
             }
         }
+        // TODO: 書き変わっている時の処理
         neighbors1.erase(std::remove_if(neighbors1.begin(), neighbors1.end(),
             [farthest_version](Node* node) { return node->getLatestVersion() == farthest_version; }), neighbors1.end());
         farthest_version->deleteInNeighbor(new_node1);
@@ -261,13 +267,13 @@ void CampusInsertExecutor::updateNeighbors(Version *spliting_version, Node *new_
 
     for (Node* neighbor_node : updating_neighbors) {
         Version *new_version = nullptr;
-            for (Version *existing_version : new_versions_) {
-                if (existing_version->getNode() == neighbor_node) {
-                    new_version = existing_version;
-                    break;
-                }
+        for (Version *existing_version : new_versions_) {
+            if (existing_version->getNode() == neighbor_node) {
+                new_version = existing_version;
+                break;
             }
-            assert(new_version != nullptr);
+        }
+        assert(new_version != nullptr);
 
         new_version->addOutNeighbor(new_node1);
         new_version->addOutNeighbor(new_node2);
@@ -300,6 +306,14 @@ void CampusInsertExecutor::updateNeighbors(Version *spliting_version, Node *new_
                     already_updated = true;
                     break;
                 }
+            }
+            if (farthest_neighbor==new_node1){
+                farthest_version = new_node1->getLatestVersion();
+                already_updated = true;
+            }
+            if (farthest_neighbor==new_node2){
+                farthest_version = new_node2->getLatestVersion();
+                already_updated = true;
             }
             if (!already_updated) {
                 farthest_version = new Version(farthest_neighbor->getLatestVersion()->getVersion() + 1,
@@ -363,6 +377,7 @@ void CampusInsertExecutor::reassignCalculation(Version *spliting_version, Node *
             }
         }
     }
+
 
     Entity **posting2 = new_node2->getLatestVersion()->getPosting();
     for (int i = 0; i < new_node2->getLatestVersion()->getVectorNum(); ++i) {
@@ -459,6 +474,7 @@ void CampusInsertExecutor::reassignCalculation(Version *spliting_version, Node *
             }
         }
     }
+
 }
 
 bool CampusInsertExecutor::validation(){
@@ -466,6 +482,10 @@ bool CampusInsertExecutor::validation(){
     // Nodeのlatest_versionが自身のVersionの１つ前のVersionでない場合は、他のリクエストによって更新されている
     for (Version *version : changed_versions_) {
         if (version->getNode()->isArchived()) {
+            std::cerr << "Error: Node is archived" << std::endl;
+            std::cerr << version->getVectorNum() << std::endl;
+            std::cerr << version->getVersion() << std::endl;
+            std::cerr << campus_->getNodeNum() << std::endl;
             return false;
         }
         if (version->getNode()->getLatestVersion() != version) {
@@ -477,18 +497,24 @@ bool CampusInsertExecutor::validation(){
 
 void CampusInsertExecutor::commit(){
     int updater_id = campus_->getUpdateCounter();
+    for (Version *version : new_versions_) {
+        campus_->switchVersion(version->getNode(), version);
+        version->setUpdaterId(updater_id);
+        for (Node *neighbor_node : version->getOutNeighbors()) {
+            assert(neighbor_node->isArchived()==false);
+        }
+        for (Node *neighbor_node : version->getInNeighbors()) {
+            assert(neighbor_node->isArchived()==false);
+        }
+    }
     for (Node *node : new_nodes_) {
         if (node->getPrevNode() != nullptr) {
             node->getPrevNode()->setArchived();
         }
         node->getLatestVersion()->setUpdaterId(updater_id);
         campus_->incrementNodeNum();
-        
     }
-    for (Version *version : new_versions_) {
-        campus_->switchVersion(version->getNode(), version);
-        version->setUpdaterId(updater_id);
-    }
+
 
 }
 
