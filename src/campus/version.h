@@ -40,10 +40,6 @@ public:
     void deleteVector(int vector_id);
     void copyPostingFromPrevVersion();
     void copyNeighborFromPrevVersion();
-    // void copyCentroidFromPrevVersion() {
-    //     std::memcpy(centroid, prev_version_->getCentroid(), dimension_ * element_size_);
-    //     // centroid = prev_version_->getCentroid();
-    // }
     void copyCentroidFromPrevVersion() {
         if (prev_version_ != nullptr && prev_version_->getCentroid() != nullptr) {
             std::memcpy(centroid, prev_version_->getCentroid(), dimension_ * element_size_);

@@ -122,7 +122,7 @@ int main(int argc, char *argv[]) {
     // std::string dataset_path = argv[2];
 
     Campus::DistanceType distance_type = Campus::L2; // または Campus::Angular
-    Campus campus(128, 10, 10, distance_type, sizeof(float));
+    Campus campus(128, 20, 10, distance_type, sizeof(float));
 
     // データセットを生成（L2正規化を含む）
     // std::vector<std::vector<float>> vectors = loadDataset(dataset_path, "/train");

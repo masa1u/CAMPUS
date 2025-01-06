@@ -1,6 +1,7 @@
 #include "campus.h"
 #include <cassert>
 #include <iostream>
+#include <unordered_set>
 
 
 void CampusInsertExecutor::insert(){
@@ -12,7 +13,7 @@ RETRY:
         if (!campus_->validationLock()) {
             goto RETRY;
         }
-        if(!campus_->getNodeNum() == 0){
+        if(campus_->getNodeNum() != 0){
             campus_->validationUnlock();
             delete new_node;
             goto RETRY;
@@ -40,7 +41,7 @@ RETRY:
             new_versions_.push_back(new_version);
         } else {
             // Need to split
-            splitCalculation(latest_version);
+            splitCalculation(latest_version, insert_vector_, vector_id_);
         }
 
 
@@ -68,7 +69,7 @@ RETRY:
 }
 
 
-void CampusInsertExecutor::splitCalculation(Version *spliting_version){
+void CampusInsertExecutor::splitCalculation(Version *spliting_version, const void *insert_vector, int vector_id) {
     Node *new_node1 = new Node(campus_->getPositingLimit(),
         campus_->getDimension(), campus_->getElementSize());
     Node *new_node2 = new Node(campus_->getPositingLimit(),
@@ -90,7 +91,7 @@ void CampusInsertExecutor::splitCalculation(Version *spliting_version){
             new_node2->getLatestVersion()->addVector(vector, vector_id);
         }
     }
-
+    new_node1->getLatestVersion()->addVector(insert_vector, vector_id);
 
     assignCalculation(new_node1, new_node2);
     connectNeighbors(spliting_version, new_node1, new_node2, campus_->getConnectionLimit());
@@ -155,79 +156,79 @@ void CampusInsertExecutor::connectNeighbors(Version *spliting_version, Node *new
             Version *changed_version = neighbor_node->getLatestVersion();
             new_version = new Version(changed_version->getVersion() + 1,
                 changed_version->getNode(), changed_version,
-                campus_->getPositingLimit(), campus_->getDimension(), campus_->getElementSize());
-            new_versions_.push_back(new_version);
-            changed_versions_.push_back(changed_version);
+                campus_->getPositingLimit(), campus_->getDimension(), campus_->getElementSize());;
             // TODO: copy関数の統合の検討
             new_version->copyNeighborFromPrevVersion();
             new_version->copyPostingFromPrevVersion();
             new_version->copyCentroidFromPrevVersion();
+            new_versions_.push_back(new_version);
+            changed_versions_.push_back(changed_version);
         }
         new_version->addInNeighbor(new_node1);
         new_version->addInNeighbor(new_node2);
-        new_version->deleteInNeighbor(spliting_version->getNode());
-
-        // in側からはdeleteしているけど、out側でdeleteしていない？
+        new_version->deleteInNeighbor(spliting_version->getNode());    
     }
     neighbors1.push_back(new_node2);
     neighbors2.push_back(new_node1);
+    new_node1->getLatestVersion()->addInNeighbor(new_node2);
+    new_node2->getLatestVersion()->addInNeighbor(new_node1);
 
-    // if the number of neighbors exceeds the connection limit, remove the farthest neighbor
-    if (neighbors1.size() > connection_limit) {
-        float max_distance = 0;
-        Version* farthest_version = nullptr;
-        for (Node* neighbor_node : neighbors1) {
-            if (neighbor_node == new_node2) {
-                continue;
-            }
-            Version *neighbor_version = nullptr;
-            for (Version *existing_version : new_versions_) {
-                if (existing_version->getNode() == neighbor_node) {
-                    neighbor_version = existing_version;
-                    break;
-                }
-            }
-            assert(neighbor_version != nullptr);
+    // // if the number of neighbors exceeds the connection limit, remove the farthest neighbor
+    // if (neighbors1.size() > connection_limit) {
+    //     float max_distance = 0;
+    //     Version* farthest_version = nullptr;
+    //     for (Node* neighbor_node : neighbors1) {
+    //         Version *neighbor_version = nullptr;
+    //         for (Version *existing_version : new_versions_) {
+    //             if (existing_version->getNode() == neighbor_node) {
+    //                 neighbor_version = existing_version;
+    //                 break;
+    //             }
+    //         }
+    //         if (neighbor_node==new_node2){
+    //             neighbor_version = new_node2->getLatestVersion();
+    //         }
+    //         assert(neighbor_version != nullptr);
 
-            float distance = distance_->calculateDistance(new_node1->getLatestVersion()->getCentroid(),
-                neighbor_version->getCentroid(), campus_->getDimension());
-            if (distance > max_distance) {
-                max_distance = distance;
-                farthest_version = neighbor_version;
-            }
-        }
-        // TODO: 書き変わっている時の処理
-        neighbors1.erase(std::remove_if(neighbors1.begin(), neighbors1.end(),
-            [farthest_version](Node* node) { return node->getLatestVersion() == farthest_version; }), neighbors1.end());
-        farthest_version->deleteInNeighbor(new_node1);
-    }
-    if (neighbors2.size() > connection_limit) {
-        float max_distance = 0;
-        Version* farthest_version = nullptr;
-        for (Node* neighbor_node : neighbors2) {
-            if (neighbor_node == new_node1) {
-                continue;
-            }
-            Version *neighbor_version = nullptr;
-            for (Version *existing_version : new_versions_) {
-                if (existing_version->getNode() == neighbor_node) {
-                    neighbor_version = existing_version;
-                    break;
-                }
-            }
-            assert(neighbor_version != nullptr);
+    //         float distance = distance_->calculateDistance(new_node1->getLatestVersion()->getCentroid(),
+    //             neighbor_version->getCentroid(), campus_->getDimension());
+    //         if (distance > max_distance) {
+    //             max_distance = distance;
+    //             farthest_version = neighbor_version;
+    //         }
+    //     }
+    //     // TODO: 書き変わっている時の処理
+    //     neighbors1.erase(std::remove_if(neighbors1.begin(), neighbors1.end(),
+    //         [farthest_version](Node* node) { return node->getLatestVersion() == farthest_version; }), neighbors1.end());
+    //     farthest_version->deleteInNeighbor(new_node1);
+    // }
+    // if (neighbors2.size() > connection_limit) {
+    //     float max_distance = 0;
+    //     Version* farthest_version = nullptr;
+    //     for (Node* neighbor_node : neighbors2) {
+    //         Version *neighbor_version = nullptr;
+    //         for (Version *existing_version : new_versions_) {
+    //             if (existing_version->getNode() == neighbor_node) {
+    //                 neighbor_version = existing_version;
+    //                 break;
+    //             }
+    //         }
+    //         if (neighbor_node==new_node1){
+    //             neighbor_version = new_node1->getLatestVersion();
+    //         }
+    //         assert(neighbor_version != nullptr);
 
-            float distance = distance_->calculateDistance(new_node2->getLatestVersion()->getCentroid(),
-                neighbor_version->getCentroid(), campus_->getDimension());
-            if (distance > max_distance) {
-                max_distance = distance;
-                farthest_version = neighbor_version;
-            }
-        }
-        neighbors2.erase(std::remove_if(neighbors2.begin(), neighbors2.end(),
-            [farthest_version](Node* node) { return node->getLatestVersion() == farthest_version; }), neighbors2.end());
-        farthest_version->deleteInNeighbor(new_node2);
-    }
+    //         float distance = distance_->calculateDistance(new_node2->getLatestVersion()->getCentroid(),
+    //             neighbor_version->getCentroid(), campus_->getDimension());
+    //         if (distance > max_distance) {
+    //             max_distance = distance;
+    //             farthest_version = neighbor_version;
+    //         }
+    //     }
+    //     neighbors2.erase(std::remove_if(neighbors2.begin(), neighbors2.end(),
+    //         [farthest_version](Node* node) { return node->getLatestVersion() == farthest_version; }), neighbors2.end());
+    //     farthest_version->deleteInNeighbor(new_node2);
+    // }
 
     // neighbor1とneighbor2をそれぞれ、new_node1とnew_node2のout_neighbors_に設定
     for (Node* neighbor_node : neighbors1) {
@@ -256,12 +257,12 @@ void CampusInsertExecutor::updateNeighbors(Version *spliting_version, Node *new_
             new_version = new Version(neighbor_node->getLatestVersion()->getVersion() + 1,
                 neighbor_node->getLatestVersion()->getNode(), neighbor_node->getLatestVersion(),
                 campus_->getPositingLimit(), campus_->getDimension(), campus_->getElementSize());
-            new_versions_.push_back(new_version);
-            changed_versions_.push_back(neighbor_node->getLatestVersion());
             // TODO: copy関数の統合の検討
             new_version->copyNeighborFromPrevVersion();
             new_version->copyPostingFromPrevVersion();
             new_version->copyCentroidFromPrevVersion();
+            new_versions_.push_back(new_version);
+            changed_versions_.push_back(neighbor_node->getLatestVersion());
         }
     }
 
@@ -283,50 +284,52 @@ void CampusInsertExecutor::updateNeighbors(Version *spliting_version, Node *new_
         new_version->deleteOutNeighbor(spliting_version->getNode());
 
 
-        if (new_version->getOutNeighbors().size() > connection_limit) {
-            float max_distance = 0;
-            Node* farthest_neighbor = nullptr;
-            for (Node* neighbor_node : new_version->getOutNeighbors()) {
-                // TODO: neighbor_nodeをvalidationするchanged_nodes_に含めるべきか
-                // validationしなくても、NPA違反は起きない。グラフの接続の問題
-                float distance = distance_->calculateDistance(new_version->getCentroid(),
-                    neighbor_node->getLatestVersion()->getCentroid(), campus_->getDimension());
-                if (distance > max_distance) {
-                    max_distance = distance;
-                    farthest_neighbor = neighbor_node;
-                }
-            }
-            new_version->deleteOutNeighbor(farthest_neighbor);
-            // TODO: farthest_neighborをreadするタイミングについて検討
-            Version *farthest_version = nullptr;
-            bool already_updated = false;
-            for (Version *existing_version : new_versions_) {
-                if (existing_version->getNode() == farthest_neighbor) {
-                    farthest_version = existing_version;
-                    already_updated = true;
-                    break;
-                }
-            }
-            if (farthest_neighbor==new_node1){
-                farthest_version = new_node1->getLatestVersion();
-                already_updated = true;
-            }
-            if (farthest_neighbor==new_node2){
-                farthest_version = new_node2->getLatestVersion();
-                already_updated = true;
-            }
-            if (!already_updated) {
-                farthest_version = new Version(farthest_neighbor->getLatestVersion()->getVersion() + 1,
-                    farthest_neighbor->getLatestVersion()->getNode(), farthest_neighbor->getLatestVersion(),
-                    campus_->getPositingLimit(), campus_->getDimension(), campus_->getElementSize());
-                farthest_version->copyNeighborFromPrevVersion();
-                farthest_version->copyPostingFromPrevVersion();
-                farthest_version->copyCentroidFromPrevVersion();
-                new_versions_.push_back(farthest_version);
-                changed_versions_.push_back(farthest_neighbor->getLatestVersion());
-            }
-            farthest_version->deleteInNeighbor(new_version->getNode());
-        }
+        // if (new_version->getOutNeighbors().size() > connection_limit) {
+        //     float max_distance = 0;
+        //     Node* farthest_neighbor = nullptr;
+        //     // FIXME: neighbor_nodeを重複して定義している
+        //     for (Node* neighbor_neighbor : new_version->getOutNeighbors()) {
+        //         // TODO: neighbor_nodeをvalidationするchanged_nodes_に含めるべきか
+        //         // validationしなくても、NPA違反は起きない。グラフの接続の問題
+        //         float distance = distance_->calculateDistance(new_version->getCentroid(),
+        //             neighbor_neighbor->getLatestVersion()->getCentroid(), campus_->getDimension());
+        //         if (distance > max_distance) {
+        //             max_distance = distance;
+        //             farthest_neighbor = neighbor_neighbor;
+        //         }
+        //         assert(distance != 0);
+        //     }
+        //     new_version->deleteOutNeighbor(farthest_neighbor);
+        //     // TODO: farthest_neighborをreadするタイミングについて検討
+        //     Version *farthest_version = nullptr;
+        //     bool already_updated = false;
+        //     for (Version *existing_version : new_versions_) {
+        //         if (existing_version->getNode() == farthest_neighbor) {
+        //             farthest_version = existing_version;
+        //             already_updated = true;
+        //             break;
+        //         }
+        //     }
+        //     if (farthest_neighbor==new_node1){
+        //         farthest_version = new_node1->getLatestVersion();
+        //         already_updated = true;
+        //     }
+        //     if (farthest_neighbor==new_node2){
+        //         farthest_version = new_node2->getLatestVersion();
+        //         already_updated = true;
+        //     }
+        //     if (!already_updated) {
+        //         farthest_version = new Version(farthest_neighbor->getLatestVersion()->getVersion() + 1,
+        //             farthest_neighbor->getLatestVersion()->getNode(), farthest_neighbor->getLatestVersion(),
+        //             campus_->getPositingLimit(), campus_->getDimension(), campus_->getElementSize());
+        //         farthest_version->copyNeighborFromPrevVersion();
+        //         farthest_version->copyPostingFromPrevVersion();
+        //         farthest_version->copyCentroidFromPrevVersion();
+        //         new_versions_.push_back(farthest_version);
+        //         changed_versions_.push_back(farthest_neighbor->getLatestVersion());
+        //     }
+        //     farthest_version->deleteInNeighbor(new_version->getNode());
+        // }
     }
 
 }
@@ -346,6 +349,7 @@ void CampusInsertExecutor::reassignCalculation(Version *spliting_version, Node *
             Version *closest_version = new_node1->getLatestVersion();
             for (Node *neighbor_node : new_node1->getLatestVersion()->getOutNeighbors()) {
                 if (neighbor_node == new_node2) {
+                    // assignでnew_node2より近いことは確定
                     continue;
                 }
                 Version *neighbor = nullptr;
@@ -367,13 +371,15 @@ void CampusInsertExecutor::reassignCalculation(Version *spliting_version, Node *
             if (closest_version == new_node1->getLatestVersion()) {
                 continue;
             } else {
-                new_node1->getLatestVersion()->deleteVector(posting1[i]->id);
+                int vector_id = posting1[i]->id;
+                new_node1->getLatestVersion()->deleteVector(vector_id);
                 if (closest_version->canAddVector()) {
-                    closest_version->addVector(vector, posting1[i]->id);
+                    closest_version->addVector(vector, vector_id);
                 } else {
-                    Version *spliting_version = closest_version;
-                    splitCalculation(spliting_version);
+                    Version *split_version = closest_version;
+                    splitCalculation(split_version, vector, vector_id);
                 }
+                i--;
             }
         }
     }
@@ -414,18 +420,34 @@ void CampusInsertExecutor::reassignCalculation(Version *spliting_version, Node *
             if (closest_version == new_node2->getLatestVersion()) {
                 continue;
             } else {
-                new_node2->getLatestVersion()->deleteVector(posting2[i]->id);
+                int vector_id = posting2[i]->id;
+                new_node2->getLatestVersion()->deleteVector(vector_id);
                 if (closest_version->canAddVector()) {
-                    closest_version->addVector(vector, posting2[i]->id);
+                    closest_version->addVector(vector, vector_id);
                 } else {
-                    Version *spliting_version = closest_version;
-                    splitCalculation(spliting_version);
+                    Version *split_version = closest_version;
+                    splitCalculation(split_version, vector, vector_id);
                 }
+                i--;
             }
         }
     }
 
+    // std::unordered_set<Node*> in_neighbors_set;
+    // for (Node* neighbor_node : new_node1->getLatestVersion()->getInNeighbors()) {
+    //     if (neighbor_node != new_node1 && neighbor_node != new_node2) {
+    //         in_neighbors_set.insert(neighbor_node);
+    //     }
+    // }
+    // for (Node* neighbor_node : new_node2->getLatestVersion()->getInNeighbors()) {
+    //     if (neighbor_node != new_node1 && neighbor_node != new_node2) {
+    //         in_neighbors_set.insert(neighbor_node);
+    //     }
+    // }
+    // std::vector<Node*> in_neighbors(in_neighbors_set.begin(), in_neighbors_set.end());
+
     std::vector<Node*> in_neighbors = spliting_version->getInNeighbors();
+
     for (Node* neighbor_node : in_neighbors){
         Version *neighbor = nullptr;
         for (Version *existing_version : new_versions_) {
@@ -452,24 +474,28 @@ void CampusInsertExecutor::reassignCalculation(Version *spliting_version, Node *
                 if (current_distance < new_distance1 && current_distance < new_distance2) {
                     continue;
                 } else {
-                    neighbor->deleteVector(posting[i]->id);
+                    int vector_id = posting[i]->id;
+                    neighbor->deleteVector(vector_id);
                     if (new_distance1 < new_distance2) {
+                        // addVectorがよくない
                         if (new_node1->getLatestVersion()->canAddVector()) {
-                            new_node1->getLatestVersion()->addVector(vector, posting[i]->id);
+                            new_node1->getLatestVersion()->addVector(vector, vector_id);
                         } else {
-                            Version *spliting_version = new_node1->getLatestVersion();
+                            Version *split_version = new_node1->getLatestVersion();
                             new_nodes_.erase(std::remove(new_nodes_.begin(), new_nodes_.end(), new_node1), new_nodes_.end());
-                            splitCalculation(spliting_version);
+                            splitCalculation(split_version, vector, vector_id);
                         }
                     } else {
                         if (new_node2->getLatestVersion()->canAddVector()) {
-                            new_node2->getLatestVersion()->addVector(vector, posting[i]->id);
+                            new_node2->getLatestVersion()->addVector(vector, vector_id);
                         } else {
-                            Version *spliting_version = new_node2->getLatestVersion();
+                            Version *split_version = new_node2->getLatestVersion();
                             new_nodes_.erase(std::remove(new_nodes_.begin(), new_nodes_.end(), new_node1), new_nodes_.end());
-                            splitCalculation(spliting_version);
+                            splitCalculation(split_version, vector, vector_id);
                         }
                     }
+                    // 削除した時はpostingのindexがずれるので、iをデクリメント
+                    i--;
                 }
             }
         }
@@ -498,14 +524,15 @@ bool CampusInsertExecutor::validation(){
 void CampusInsertExecutor::commit(){
     int updater_id = campus_->getUpdateCounter();
     for (Version *version : new_versions_) {
+        for (Node *neighbor : version->getOutNeighbors()) {
+            float distance = distance_->calculateDistance(version->getCentroid(), neighbor->getLatestVersion()->getCentroid(), campus_->getDimension());
+            if (distance == 0) {
+                std::cerr << campus_->getNodeNum() << std::endl;
+                assert(false);
+            }
+        }
         campus_->switchVersion(version->getNode(), version);
         version->setUpdaterId(updater_id);
-        for (Node *neighbor_node : version->getOutNeighbors()) {
-            assert(neighbor_node->isArchived()==false);
-        }
-        for (Node *neighbor_node : version->getInNeighbors()) {
-            assert(neighbor_node->isArchived()==false);
-        }
     }
     for (Node *node : new_nodes_) {
         if (node->getPrevNode() != nullptr) {
@@ -514,8 +541,6 @@ void CampusInsertExecutor::commit(){
         node->getLatestVersion()->setUpdaterId(updater_id);
         campus_->incrementNodeNum();
     }
-
-
 }
 
 void CampusInsertExecutor::abort(){
