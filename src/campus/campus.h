@@ -80,7 +80,7 @@ private:
     // std::vector<Node*> changed_nodes_;
     std::vector<Node*> new_nodes_; // Newly created nodes with split
     std::vector<Version*> new_versions_; // Newly created versions without split
-    void splitCalculation(Version *spliting_version);
+    void splitCalculation(Version *spliting_version, const void *insert_vector, int vector_id);
     void assignCalculation(Node *new_node1, Node *new_node2);
     void reassignCalculation(Version *spliting_version, Node *new_node1, Node *new_node2);
     void connectNeighbors(Version *spliting_version, Node *new_node1, Node *new_node2, int connection_limit);

@@ -5,6 +5,7 @@
 #include <vector>
 #include <algorithm>
 #include <iostream>
+#include <cassert>
 
 class Node;
 
@@ -39,10 +40,6 @@ public:
     void deleteVector(int vector_id);
     void copyPostingFromPrevVersion();
     void copyNeighborFromPrevVersion();
-    // void copyCentroidFromPrevVersion() {
-    //     std::memcpy(centroid, prev_version_->getCentroid(), dimension_ * element_size_);
-    //     // centroid = prev_version_->getCentroid();
-    // }
     void copyCentroidFromPrevVersion() {
         if (prev_version_ != nullptr && prev_version_->getCentroid() != nullptr) {
             std::memcpy(centroid, prev_version_->getCentroid(), dimension_ * element_size_);
@@ -50,11 +47,11 @@ public:
             std::cerr << "Error: Invalid prev_version_ or prev_version_->getCentroid() in Version::copyCentroidFromPrevVersion()" << std::endl;
         }
     }
-    void addInNeighbor(Node* neighbor) { in_neighbors_.push_back(neighbor); }
+    void addInNeighbor(Node* neighbor);
     void deleteInNeighbor(Node* neighbor) {
         in_neighbors_.erase(std::remove(in_neighbors_.begin(), in_neighbors_.end(), neighbor), in_neighbors_.end());
     }
-    void addOutNeighbor(Node* neighbor) { out_neighbors_.push_back(neighbor); }
+    void addOutNeighbor(Node* neighbor);
     void deleteOutNeighbor(Node* neighbor) {
         out_neighbors_.erase(std::remove(out_neighbors_.begin(), out_neighbors_.end(), neighbor), out_neighbors_.end());
     }

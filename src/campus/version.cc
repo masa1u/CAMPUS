@@ -43,6 +43,16 @@ void Version::deleteVector(int vector_id) {
     }
 }
 
+void Version::addInNeighbor(Node* neighbor) {
+    assert(neighbor->isArchived() == false);
+    in_neighbors_.push_back(neighbor);
+}
+
+void Version::addOutNeighbor(Node* neighbor) {
+    assert(neighbor->isArchived() == false);
+    out_neighbors_.push_back(neighbor);
+}
+
 void Version::copyPostingFromPrevVersion() {
     if (prev_version_ != nullptr) {
         for (int i = 0; i < prev_version_->getVectorNum(); ++i) {
