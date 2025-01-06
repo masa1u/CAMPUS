@@ -112,6 +112,20 @@ void insertVectors(Campus *campus, const std::vector<std::vector<float>> &vector
     }
 }
 
+// void insertVectors(Campus* campus, const std::vector<std::vector<float>>& vectors, int start, int end) {
+//     for (int i = start; i < end; ++i) {
+//         const std::vector<float>& vector = vectors[i];
+//         int vector_id = i;
+//         std::cout << "Inserting vector with ID " << vector_id << ": ";
+//         for (float val : vector) {
+//             std::cout << val << " ";
+//         }
+//         std::cout << std::endl;
+//         CampusInsertExecutor insert_executor(campus, static_cast<const void*>(vectors[i].data()), i);
+//         insert_executor.insert();
+//     }
+// }
+
 int main(int argc, char *argv[]) {
     if (argc != 3) {
         std::cerr << "Usage: " << argv[0] << " <num_threads> <dataset_path>" << std::endl;

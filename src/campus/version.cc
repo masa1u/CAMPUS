@@ -32,8 +32,6 @@ void Version::addVector(const void* vector, const int vector_id) {
 void Version::deleteVector(int vector_id) {
     for (int i = 0; i < vector_num_; ++i) {
         if (posting_[i]->id == vector_id) {
-            // REVIEW: delete必要？
-            delete posting_[i];
             for (int j = i; j < vector_num_ - 1; ++j) {
                 posting_[j] = posting_[j + 1];
             }
@@ -44,12 +42,10 @@ void Version::deleteVector(int vector_id) {
 }
 
 void Version::addInNeighbor(Node* neighbor) {
-    assert(neighbor->isArchived() == false);
     in_neighbors_.push_back(neighbor);
 }
 
 void Version::addOutNeighbor(Node* neighbor) {
-    assert(neighbor->isArchived() == false);
     out_neighbors_.push_back(neighbor);
 }
 
@@ -58,6 +54,7 @@ void Version::copyPostingFromPrevVersion() {
         for (int i = 0; i < prev_version_->getVectorNum(); ++i) {
             addVector(prev_version_->getPosting()[i]->getVector(), prev_version_->getPosting()[i]->id);
         }
+        vector_num_ = prev_version_->getVectorNum();
     }
 }
 
