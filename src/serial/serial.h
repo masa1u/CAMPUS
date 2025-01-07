@@ -1,23 +1,23 @@
-#ifndef CAMPUS_H
-#define CAMPUS_H
+#ifndef SERIAL_H
+#define SERIAL_H
 
 #include "node.h"
 #include "../utils/distance.h"
 #include "../utils/lock.h"
 #include <vector>
 
-class Campus {
+class Serial {
 public:
     enum DistanceType {
         L2,
         Angular
     };
 
-    Campus(int dimension, int posting_limit, int connection_limit, DistanceType distance_type, size_t element_size)
+    Serial(int dimension, int posting_limit, int connection_limit, DistanceType distance_type, size_t element_size)
         : dimension_(dimension), posting_limit_(posting_limit), connection_limit_(connection_limit), node_num_(0),
             update_counter_(0), distance_type_(distance_type), element_size_(element_size), entry_point_(nullptr){}
 
-    ~Campus() {
+    ~Serial() {
 
     }
 
@@ -32,9 +32,8 @@ public:
     std::vector<Node*> findNearestNodes(const void *query_vector, Distance *distance, int n);
     std::vector<int> topKSearch(const void *query_vector, int top_k, Distance *distance, int n);
     DistanceType getDistanceType() const { return distance_type_; }
-    bool validationLock() { return validation_lock_.w_trylock(); }
-    void validationUnlock() { return validation_lock_.w_unlock(); }
-    void switchVersion(Node *node, Version *new_version);
+    bool insertLock() { return insert_lock_.w_trylock(); }
+    void insertUnlock() { return insert_lock_.w_unlock(); }
     void setEntryPoint(Node *node) { entry_point_ = node; }
     void incrementNodeNum() { node_num_++; }
 
@@ -45,7 +44,7 @@ private:
     int node_num_;
     int update_counter_;
     size_t element_size_;
-    Lock validation_lock_;
+    Lock insert_lock_;
     Node *entry_point_;
     DistanceType distance_type_;
 
@@ -53,13 +52,13 @@ private:
 
 class CampusInsertExecutor {
 public:
-    CampusInsertExecutor(Campus *campus, const void *insert_vector, int vector_id)
-        : campus_(campus), insert_vector_(insert_vector), vector_id_(vector_id) {
-        switch (campus_->getDistanceType()) {
-            case Campus::L2:
+    CampusInsertExecutor(Serial *serial, const void *insert_vector, int vector_id)
+        : serial_(serial), insert_vector_(insert_vector), vector_id_(vector_id) {
+        switch (serial_->getDistanceType()) {
+            case Serial::L2:
                 distance_ = new L2Distance();
                 break;
-            case Campus::Angular:
+            case Serial::Angular:
                 distance_ = new AngularDistance();
                 break;
         }
@@ -72,19 +71,15 @@ public:
     void insert();
 
 private:
-    Campus *campus_;
+    Serial *serial_;
     Distance *distance_;
     const void *insert_vector_;
     const int vector_id_;
-    std::vector<Version*> changed_versions_;
-    // std::vector<Node*> changed_nodes_;
-    std::vector<Node*> new_nodes_; // Newly created nodes with split
-    std::vector<Version*> new_versions_; // Newly created versions without split
-    void splitCalculation(Version *spliting_version, const void *insert_vector, int vector_id);
+    void split(Node *node, const void *insert_vector, int vector_id);
     void assignCalculation(Node *new_node1, Node *new_node2);
-    void reassignCalculation(Version *spliting_version, Node *new_node1, Node *new_node2);
-    void connectNeighbors(Version *spliting_version, Node *new_node1, Node *new_node2, int connection_limit);
-    void updateNeighbors(Version *spliting_version, Node *new_node1, Node *new_node2, int connection_limit);
+    void reassignCalculation(Node *spliting_node, Node *new_node1, Node *new_node2);
+    void connectNeighbors(Node *spliting_node, Node *new_node1, Node *new_node2, int connection_limit);
+    void updateNeighbors(Node *spliting_node, Node *new_node1, Node *new_node2, int connection_limit);
     bool validation();
     void commit();
     void abort();
@@ -92,13 +87,13 @@ private:
 
 class CampusQueryExecutor {
 public:
-    CampusQueryExecutor(Campus *campus, const void *query_vector, int top_k)
-        : campus_(campus), query_vector_(query_vector), top_k_(top_k) {
-        switch (campus_->getDistanceType()) {
-            case Campus::L2:
+    CampusQueryExecutor(Serial *serial, const void *query_vector, int top_k)
+        : serial_(serial), query_vector_(query_vector), top_k_(top_k) {
+        switch (serial_->getDistanceType()) {
+            case Serial::L2:
                 distance_ = new L2Distance();
                 break;
-            case Campus::Angular:
+            case Serial::Angular:
                 distance_ = new AngularDistance();
                 break;
         }
@@ -108,15 +103,13 @@ public:
         delete distance_;
     }
 
-    std::vector<int> query() {
-        return campus_->topKSearch(query_vector_, top_k_, distance_, campus_->getNodeNum());
-    };
+    std::vector<int> query();
 
     private:
-        Campus *campus_;
+        Serial *serial_;
         const void *query_vector_;
         const int top_k_;
         Distance *distance_;
 };
 
-#endif // CAMPUS_H
+#endif // SERIAL_H
