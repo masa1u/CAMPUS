@@ -4,7 +4,7 @@
 #include "entity.h"
 #include <vector>
 #include <cassert>
-
+#include <algorithm>
 
 class Node {
 public:
