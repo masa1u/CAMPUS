@@ -35,6 +35,20 @@ public:
     std::vector<Node*> getOutNeighbors() const { return out_neighbors_; }
     Entity **getPosting() const { return posting_; }
     void calculateCentroid();
+    void printCentroid() {
+        for (int i = 0; i < dimension_; ++i) {
+            std::cout << reinterpret_cast<float*>(centroid)[i] << " ";
+        }
+        std::cout << std::endl;
+    }
+    void printAllVectors() {
+        for (int i = 0; i < vector_num_; ++i) {
+            for (int j = 0; j < dimension_; ++j) {
+                std::cout << reinterpret_cast<const float*>(posting_[i]->getVector())[j] << " ";
+            }
+            std::cout << std::endl;
+        }
+    }
     bool canAddVector() const { return vector_num_ < max_num_; }
     void addVector(const void* vector, const int vector_id);
     void deleteVector(int vector_id);
