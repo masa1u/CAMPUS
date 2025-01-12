@@ -49,21 +49,23 @@ void Version::addOutNeighbor(Node* neighbor) {
     out_neighbors_.push_back(neighbor);
 }
 
-void Version::copyPostingFromPrevVersion() {
-    if (prev_version_ != nullptr) {
-        for (int i = 0; i < prev_version_->getVectorNum(); ++i) {
-            addVector(prev_version_->getPosting()[i]->getVector(), prev_version_->getPosting()[i]->id);
-        }
-        vector_num_ = prev_version_->getVectorNum();
-    }
-}
 
-void Version::copyNeighborFromPrevVersion() {
-    // prev_version_からin_neighbors_とout_neighbors_をコピー
-    for (Node* neighbor : prev_version_->getInNeighbors()) {
-        addInNeighbor(neighbor);
+void Version::copyFromPrevVersion() {
+    if (prev_version_ == nullptr) {
+        return;
     }
+    // copy posting
+    for (int i = 0; i < prev_version_->getVectorNum(); ++i) {
+        addVector(prev_version_->getPosting()[i]->getVector(), prev_version_->getPosting()[i]->id);
+    }
+    vector_num_ = prev_version_->getVectorNum();
+    // copy neighbors
     for (Node* neighbor : prev_version_->getOutNeighbors()) {
         addOutNeighbor(neighbor);
     }
+    for (Node* neighbor : prev_version_->getInNeighbors()) {
+        addInNeighbor(neighbor);
+    }
+    // copy centroid
+    std::memcpy(centroid, prev_version_->getCentroid(), dimension_ * element_size_);
 }
