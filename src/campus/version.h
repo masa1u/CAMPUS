@@ -61,6 +61,7 @@ public:
             std::cerr << "Error: Invalid prev_version_ or prev_version_->getCentroid() in Version::copyCentroidFromPrevVersion()" << std::endl;
         }
     }
+    void copyFromPrevVersion() ;
     void addInNeighbor(Node* neighbor);
     void deleteInNeighbor(Node* neighbor) {
         in_neighbors_.erase(std::remove(in_neighbors_.begin(), in_neighbors_.end(), neighbor), in_neighbors_.end());

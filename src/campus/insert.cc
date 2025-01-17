@@ -442,19 +442,6 @@ void CampusInsertExecutor::reassignCalculation(Version *spliting_version, Node *
         }
     }
 
-    // std::unordered_set<Node*> in_neighbors_set;
-    // for (Node* neighbor_node : new_node1->getLatestVersion()->getInNeighbors()) {
-    //     if (neighbor_node != new_node1 && neighbor_node != new_node2) {
-    //         in_neighbors_set.insert(neighbor_node);
-    //     }
-    // }
-    // for (Node* neighbor_node : new_node2->getLatestVersion()->getInNeighbors()) {
-    //     if (neighbor_node != new_node1 && neighbor_node != new_node2) {
-    //         in_neighbors_set.insert(neighbor_node);
-    //     }
-    // }
-    // std::vector<Node*> in_neighbors(in_neighbors_set.begin(), in_neighbors_set.end());
-
     std::vector<Node*> in_neighbors = spliting_version->getInNeighbors();
 
     for (Node* neighbor_node : in_neighbors){
