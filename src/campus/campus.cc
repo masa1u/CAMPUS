@@ -10,35 +10,26 @@
 Node *Campus::findExactNearestNode(const void *query_vector, Distance *distance) {
     Node *nearest_node = nullptr;
     float min_distance = std::numeric_limits<float>::max();
-    std::unordered_set<Node*> visited;
 
-    std::queue<Node*> node_queue;
-    node_queue.push(entry_point_);
-
-    while (!node_queue.empty()) {
-        Node *current_node = node_queue.front();
-
-        node_queue.pop();
-
-        if (visited.find(current_node) != visited.end()) {
-            continue;
-        }
-        visited.insert(current_node);
-
-        Version *latest_version = current_node->getLatestVersion();
-        float distance_to_query = distance->calculateDistance(static_cast<const float*>(latest_version->getCentroid()), static_cast<const float*>(query_vector), dimension_);
-        if (distance_to_query < min_distance) {
-            min_distance = distance_to_query;
-            nearest_node = current_node;
-        }
-
-        for (Node* neighbor_node : latest_version->getOutNeighbors()) {
-            if (visited.find(neighbor_node) == visited.end()) {
-                node_queue.push(neighbor_node);
-            }
-        }
+    std::shared_ptr<std::vector<Node*>> nodes_snapshot;
+    {
+        std::lock_guard<std::mutex> lock(mutex_);
+        nodes_snapshot = all_nodes_;
     }
 
+    for (Node *node : *nodes_snapshot) {
+        assert(node != nullptr);
+        if (node->isArchived()) {
+            continue;
+        }
+        Version *latest_version = node->getLatestVersion();
+        float current_distance = distance->calculateDistance(static_cast<const float*>(latest_version->getCentroid()), static_cast<const float*>(query_vector), dimension_);
+
+        if (current_distance < min_distance) {
+            min_distance = current_distance;
+            nearest_node = node;
+        }
+    }
     return nearest_node;
 }
 

@@ -4,7 +4,7 @@
 #include <unordered_set>
 
 
-void CampusInsertExecutor::insert(){
+void SerialInsertExecutor::insert(){
 RETRY:
     while (!serial_->insertLock()) {}
     // If the campus is empty, create a new node and set it as the entry point
@@ -12,6 +12,7 @@ RETRY:
         Node *new_node = new Node(serial_->getPositingLimit(),
             serial_->getDimension(), sizeof(float));
         serial_->setEntryPoint(new_node);
+        serial_->addNode(new_node);
         serial_->incrementNodeNum();
         new_node->addVector(insert_vector_, vector_id_);
     } else {
@@ -30,16 +31,17 @@ RETRY:
 }
 
 
-void CampusInsertExecutor::split(Node *spliting_node, const void *insert_vector, int vector_id) {
+void SerialInsertExecutor::split(Node *spliting_node, const void *insert_vector, int vector_id) {
     Node *new_node1 = new Node(serial_->getPositingLimit(),
         serial_->getDimension(), serial_->getElementSize());
     Node *new_node2 = new Node(serial_->getPositingLimit(),
         serial_->getDimension(), serial_->getElementSize());
     serial_->incrementNodeNum();
-    // TODO: コンストラクタでprev_nodeを設定するように変更するか検討
+    serial_->addNode(new_node1);
+    serial_->addNode(new_node2);
+    serial_->deleteNode(spliting_node);
 
     Entity **posting = spliting_node->getPosting();
-
     // randomly assign vectors to new nodes
     for (int i = 0; i < spliting_node->getVectorNum(); ++i) {
         const void *vector = posting[i]->getVector();
@@ -58,7 +60,7 @@ void CampusInsertExecutor::split(Node *spliting_node, const void *insert_vector,
     reassignCalculation(spliting_node, new_node1, new_node2);
 }
 
-void CampusInsertExecutor::assignCalculation(Node *new_node1, Node *new_node2) {
+void SerialInsertExecutor::assignCalculation(Node *new_node1, Node *new_node2) {
     // k-means clustering for the new nodes
     while (true) {
         new_node1->calculateCentroid();
@@ -100,7 +102,7 @@ void CampusInsertExecutor::assignCalculation(Node *new_node1, Node *new_node2) {
 
 
 
-void CampusInsertExecutor::connectNeighbors(Node *spliting_node, Node *new_node1, Node *new_node2, int connection_limit) {
+void SerialInsertExecutor::connectNeighbors(Node *spliting_node, Node *new_node1, Node *new_node2, int connection_limit) {
     std::vector<Node*> neighbors1 = spliting_node->getOutNeighbors();
     std::vector<Node*> neighbors2 = spliting_node->getOutNeighbors();
 
@@ -149,7 +151,6 @@ void CampusInsertExecutor::connectNeighbors(Node *spliting_node, Node *new_node1
     for (Node* neighbor_node : neighbors1) {
         new_node1->addOutNeighbor(neighbor_node);
         neighbor_node->addInNeighbor(new_node1);
-
     }
     for (Node* neighbor_node : neighbors2) {
         new_node2->addOutNeighbor(neighbor_node);
@@ -159,7 +160,7 @@ void CampusInsertExecutor::connectNeighbors(Node *spliting_node, Node *new_node1
 
 
 
-void CampusInsertExecutor::updateNeighbors(Node *spliting_node, Node *new_node1, Node *new_node2, int connection_limit) {
+void SerialInsertExecutor::updateNeighbors(Node *spliting_node, Node *new_node1, Node *new_node2, int connection_limit) {
     std::vector<Node*> updating_neighbors = spliting_node->getInNeighbors();
 
     for (Node* neighbor_node : updating_neighbors) {
@@ -170,11 +171,9 @@ void CampusInsertExecutor::updateNeighbors(Node *spliting_node, Node *new_node1,
 
         neighbor_node->deleteOutNeighbor(spliting_node);
 
-
         if (neighbor_node->getOutNeighbors().size() > connection_limit) {
             float max_distance = 0;
             Node* farthest_neighbor = nullptr;
-            // FIXME: neighbor_nodeを重複して定義している
             for (Node* neighbor_neighbor : neighbor_node->getOutNeighbors()) {
                 // TODO: neighbor_nodeをvalidationするchanged_nodes_に含めるべきか
                 // validationしなくても、NPA違反は起きない。グラフの接続の問題
@@ -184,7 +183,10 @@ void CampusInsertExecutor::updateNeighbors(Node *spliting_node, Node *new_node1,
                     max_distance = distance;
                     farthest_neighbor = neighbor_neighbor;
                 }
-                assert(distance != 0);
+                // assert(distance != 0);
+                if (distance == 0){
+                    std::cout << neighbor_node->getOutNeighbors().size() << std::endl;
+                }
             }
             neighbor_node->deleteOutNeighbor(farthest_neighbor);
             farthest_neighbor->deleteInNeighbor(neighbor_node);
@@ -193,7 +195,7 @@ void CampusInsertExecutor::updateNeighbors(Node *spliting_node, Node *new_node1,
 
 }
 
-void CampusInsertExecutor::reassignCalculation(Node *spliting_node, Node *new_node1, Node *new_node2) {
+void SerialInsertExecutor::reassignCalculation(Node *spliting_node, Node *new_node1, Node *new_node2) {
     Entity **posting1 = new_node1->getPosting();
     for (int i = 0; i < new_node1->getVectorNum(); ++i) {
         const void *vector = posting1[i]->getVector();

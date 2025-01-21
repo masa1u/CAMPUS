@@ -5,6 +5,8 @@
 #include "../utils/distance.h"
 #include "../utils/lock.h"
 #include <vector>
+#include <mutex>
+#include <memory>
 
 class Campus {
 public:
@@ -37,6 +39,18 @@ public:
     void switchVersion(Node *node, Version *new_version);
     void setEntryPoint(Node *node) { entry_point_ = node; }
     void incrementNodeNum() { node_num_++; }
+    void incrementUpdateCounter() { update_counter_++; }  
+    void addNode(Node *node) {
+        std::lock_guard<std::mutex> lock(mutex_);
+        auto new_nodes = std::make_shared<std::vector<Node*>>(*all_nodes_);
+        new_nodes->push_back(node);
+        all_nodes_ = new_nodes;
+    }
+    void deleteNode(Node *node) {
+        auto new_nodes = std::make_shared<std::vector<Node*>>(*all_nodes_);
+        new_nodes->erase(std::remove(new_nodes->begin(), new_nodes->end(), node), new_nodes->end());
+        all_nodes_ = new_nodes;
+    }
 
 private:
     const int dimension_;
@@ -47,6 +61,8 @@ private:
     size_t element_size_;
     Lock validation_lock_;
     Node *entry_point_;
+    std::mutex mutex_;
+    std::shared_ptr<std::vector<Node*>> all_nodes_ = std::make_shared<std::vector<Node*>>();
     DistanceType distance_type_;
 
 };

@@ -3,6 +3,7 @@
 
 #include "node.h"
 #include "../utils/distance.h"
+#include <cassert>
 
 class NoControl {
 public:
@@ -11,8 +12,8 @@ public:
         Angular
     };
 
-    NoControl(int dimension, int posting_limit, int connection_limit, DistanceType distance_type)
-        : dimension_(dimension), posting_limit_(posting_limit), connection_limit_(connection_limit), distance_type_(distance_type), node_num_(0) {
+    NoControl(int dimension, int posting_limit, int connection_limit, DistanceType distance_type, size_t element_size)
+        : dimension_(dimension), posting_limit_(posting_limit), connection_limit_(connection_limit), distance_type_(distance_type), element_size_(element_size), node_num_(0) {
         entry_point_ = new Node(10, 10, sizeof(float));
     }
 
@@ -26,9 +27,14 @@ public:
     int getDimension() const { return dimension_; }
     int getPostingLimit() const { return posting_limit_; }
     int getConnectionLimit() const { return connection_limit_; }
-    Node *findExactNearestNode(const void *query_vector);
-    std::vector<Node*> findNearestNodes(const void *query_vector, int n);
+    Node *findExactNearestNode(const void *query_vector, Distance *distance);
+    std::vector<Node*> findNearestNodes(const void *query_vector, Distance *distance, int n);
     DistanceType getDistanceType() const { return distance_type_; }
+    void incrementNodeNum() { node_num_++; }
+    void addNode(Node *node) { all_nodes_.push_back(node); }
+    void deleteNode(Node *node) {
+        all_nodes_.erase(std::remove(all_nodes_.begin(), all_nodes_.end(), node), all_nodes_.end());
+    }
 
 private:
     DistanceType distance_type_;
@@ -38,7 +44,7 @@ private:
     size_t element_size_;
     Node *entry_point_;
     int node_num_;
-    
+    std::vector<Node*> all_nodes_;
 };
 
 class NoControlInsertExecutor {
@@ -56,16 +62,15 @@ public:
         }
 
     void insert();
-    void split(Node *spliting_node, const void *insert_vector, int vector_id);
 
 private:
     Distance *distance_;
     NoControl *nocontrol_;
     const void *insert_vector_;
     const int vector_id_;
-    void splitCalculation(Node *spliting_node, const void *insert_vector, int vector_id);
+    void split(Node *spliting_node, const void *insert_vector, int vector_id);
     void assign(Node *new_node1, Node *new_node2);
-    void reassignCalculation(Node *spliting_node, Node *new_node1, Node *new_node2);
+    void reassign(Node *spliting_node, Node *new_node1, Node *new_node2);
     void connectNeighbors(Node *spliting_node, Node *new_node1, Node *new_node2, int connection_limit);
     void updateNeighbors(Node *spliting_node, Node *new_node1, Node *new_node2, int connection_limit);
 };

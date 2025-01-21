@@ -31,8 +31,6 @@ void Node::addVector(const void* vector, const int vector_id) {
 void Node::deleteVector(int vector_id) {
     for (int i = 0; i < vector_num_; ++i) {
         if (posting_[i]->id == vector_id) {
-            // REVIEW: delete必要？
-            delete posting_[i];
             for (int j = i; j < vector_num_ - 1; ++j) {
                 posting_[j] = posting_[j + 1];
             }

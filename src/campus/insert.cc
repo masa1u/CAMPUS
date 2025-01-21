@@ -20,6 +20,7 @@ RETRY:
         }
         campus_->setEntryPoint(new_node);
         campus_->incrementNodeNum();
+        campus_->addNode(new_node);
         Version *latest_version = new_node->getLatestVersion();
         latest_version->addVector(insert_vector_, vector_id_);
         latest_version->calculateCentroid();
@@ -28,15 +29,16 @@ RETRY:
     } else {
         // Find the nearest node to the insert_vector_
         Node *nearest_node = campus_->findExactNearestNode(insert_vector_, distance_);
+        if (nearest_node == nullptr) {
+            goto RETRY;
+        }
         Version *latest_version = nearest_node->getLatestVersion();
         changed_versions_.push_back(latest_version);
         if (latest_version->canAddVector()) {
             // No need to split
             Version *new_version = new Version(latest_version->getVersion() + 1,  nearest_node,
                 latest_version, campus_->getPositingLimit(), campus_->getDimension(), campus_->getElementSize());
-            new_version->copyPostingFromPrevVersion();
-            new_version->copyNeighborFromPrevVersion();
-            new_version->copyCentroidFromPrevVersion();
+            new_version->copyFromPrevVersion();
             new_version->addVector(insert_vector_, vector_id_);
             new_versions_.push_back(new_version);
         } else {
@@ -71,12 +73,10 @@ RETRY:
 
 void CampusInsertExecutor::splitCalculation(Version *spliting_version, const void *insert_vector, int vector_id) {
     Node *new_node1 = new Node(campus_->getPositingLimit(),
-        campus_->getDimension(), campus_->getElementSize());
+        campus_->getDimension(), campus_->getElementSize(), spliting_version->getNode());
     Node *new_node2 = new Node(campus_->getPositingLimit(),
-        campus_->getDimension(), campus_->getElementSize());
-    // TODO: コンストラクタでprev_nodeを設定するように変更するか検討
-    new_node1->setPrevNode(spliting_version->getNode());
-    new_node2->setPrevNode(spliting_version->getNode());
+        campus_->getDimension(), campus_->getElementSize(), spliting_version->getNode());
+
     new_nodes_.push_back(new_node1);
     new_nodes_.push_back(new_node2);
     Entity **posting = spliting_version->getPosting();
@@ -161,10 +161,8 @@ void CampusInsertExecutor::connectNeighbors(Version *spliting_version, Node *new
             new_version = new Version(changed_version->getVersion() + 1,
                 changed_version->getNode(), changed_version,
                 campus_->getPositingLimit(), campus_->getDimension(), campus_->getElementSize());;
-            // TODO: copy関数の統合の検討
-            new_version->copyNeighborFromPrevVersion();
-            new_version->copyPostingFromPrevVersion();
-            new_version->copyCentroidFromPrevVersion();
+
+            new_version->copyFromPrevVersion();
             new_versions_.push_back(new_version);
             changed_versions_.push_back(changed_version);
         }
@@ -265,10 +263,8 @@ void CampusInsertExecutor::updateNeighbors(Version *spliting_version, Node *new_
             new_version = new Version(neighbor_node->getLatestVersion()->getVersion() + 1,
                 neighbor_node->getLatestVersion()->getNode(), neighbor_node->getLatestVersion(),
                 campus_->getPositingLimit(), campus_->getDimension(), campus_->getElementSize());
-            // TODO: copy関数の統合の検討
-            new_version->copyNeighborFromPrevVersion();
-            new_version->copyPostingFromPrevVersion();
-            new_version->copyCentroidFromPrevVersion();
+
+            new_version->copyFromPrevVersion();
             new_versions_.push_back(new_version);
             changed_versions_.push_back(neighbor_node->getLatestVersion());
         }
@@ -290,7 +286,6 @@ void CampusInsertExecutor::updateNeighbors(Version *spliting_version, Node *new_
         new_node2->getLatestVersion()->addInNeighbor(neighbor_node);
 
         new_version->deleteOutNeighbor(spliting_version->getNode());
-
 
         if (new_version->getOutNeighbors().size() > connection_limit) {
             float max_distance = 0;
@@ -330,9 +325,7 @@ void CampusInsertExecutor::updateNeighbors(Version *spliting_version, Node *new_
                 farthest_version = new Version(farthest_neighbor->getLatestVersion()->getVersion() + 1,
                     farthest_neighbor->getLatestVersion()->getNode(), farthest_neighbor->getLatestVersion(),
                     campus_->getPositingLimit(), campus_->getDimension(), campus_->getElementSize());
-                farthest_version->copyNeighborFromPrevVersion();
-                farthest_version->copyPostingFromPrevVersion();
-                farthest_version->copyCentroidFromPrevVersion();
+                farthest_version->copyFromPrevVersion();
                 new_versions_.push_back(farthest_version);
                 changed_versions_.push_back(farthest_neighbor->getLatestVersion());
             }
@@ -503,6 +496,11 @@ bool CampusInsertExecutor::validation(){
     // Nodeがarchiveにされていたら並列リクエストによってsplitされている
     // Nodeのlatest_versionが自身のVersionの１つ前のVersionでない場合は、他のリクエストによって更新されている
     for (Version *version : changed_versions_) {
+        assert(version != nullptr);
+        assert(version->getNode() != nullptr);
+        if (version->getNode()->isArchived()) {
+            return false;
+        }
         if (version->getNode()->getLatestVersion() != version) {
             return false;
         }
@@ -511,25 +509,19 @@ bool CampusInsertExecutor::validation(){
 }
 
 void CampusInsertExecutor::commit(){
+    campus_->incrementUpdateCounter();
     int updater_id = campus_->getUpdateCounter();
     for (Version *version : new_versions_) {
-        for (Node *neighbor : version->getOutNeighbors()) {
-            assert(neighbor->isArchived() == false);
-        }
-        for (Node *neighbor : version->getInNeighbors()) {
-            assert(neighbor->isArchived() == false);
-        }
         campus_->switchVersion(version->getNode(), version);
         version->setUpdaterId(updater_id);
     }
+
     for (Node *node : new_nodes_) {
-        for (Node *neighbor : node->getLatestVersion()->getOutNeighbors()) {
-            assert(neighbor->isArchived() == false);
-        }
-        
         if (node->getPrevNode() != nullptr) {
             node->getPrevNode()->setArchived();
         }
+        assert(node != nullptr);
+        campus_->addNode(node);
         node->getLatestVersion()->setUpdaterId(updater_id);
         campus_->incrementNodeNum();
     }

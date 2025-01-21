@@ -1,4 +1,4 @@
-#include "../src/campus/campus.h"
+#include "../src/nocontrol/nocontrol.h"
 #include <iostream>
 #include <vector>
 #include <cstdlib>
@@ -7,6 +7,7 @@
 #include <algorithm>
 #include <thread>
 #include <chrono>
+// #include <hdf5.h>
 
 // データをL2正規化する関数
 void normalizeDataset(std::vector<std::vector<float>> &dataset) {
@@ -45,9 +46,9 @@ std::vector<std::vector<float>> generateRandomDataset(size_t num_vectors, size_t
 }
 
 // ベクトルを挿入する関数
-void insertVectors(Campus *campus, const std::vector<std::vector<float>> &vectors, int start, int end) {
+void insertVectors(NoControl *nocontrol, const std::vector<std::vector<float>> &vectors, int start, int end) {
     for (int i = start; i < end; ++i) {
-        CampusInsertExecutor insert_executor(campus, static_cast<const void*>(vectors[i].data()), i);
+        NoControlInsertExecutor insert_executor(nocontrol, static_cast<const void*>(vectors[i].data()), i);
         insert_executor.insert();
     }
 }
@@ -62,10 +63,11 @@ int main(int argc, char *argv[]) {
     int num_threads = std::stoi(argv[1]);
     // std::string dataset_path = argv[2];
 
-    Campus::DistanceType distance_type = Campus::L2; // または Campus::Angular
-    Campus campus(128, 20, 10, distance_type, sizeof(float));
+    NoControl::DistanceType distance_type = NoControl::L2; // または Campus::Angular
+    NoControl nocontrol(128, 20, 10, distance_type, sizeof(float));
 
     // データセットを生成（L2正規化を含む）
+    // std::vector<std::vector<float>> vectors = loadDataset(dataset_path, "/train");
     std::vector<std::vector<float>> vectors = generateRandomDataset(1000, 128);
 
     if (vectors.size() == 0 || vectors[0].size() != 128) {
@@ -86,7 +88,7 @@ int main(int argc, char *argv[]) {
     for (int i = 0; i < num_threads; ++i) {
         int start = i * vectors_per_thread;
         int end = (i == num_threads - 1) ? vectors.size() : (i + 1) * vectors_per_thread;
-        threads.emplace_back(insertVectors, &campus, std::ref(vectors), start, end);
+        threads.emplace_back(insertVectors, &nocontrol, std::ref(vectors), start, end);
     }
 
     for (auto &thread : threads) {
@@ -100,7 +102,7 @@ int main(int argc, char *argv[]) {
               << elapsed.count() << " seconds.\n";
     std::cout << "Throughput: " << vectors.size() / elapsed.count() << " vectors/second\n";
     std::cout << "Latency: " << elapsed.count() / vectors.size() << " seconds/vector\n";
-    std::cout << "Node num: " << campus.getNodeNum() << std::endl;
+    std::cout << "Node num: " << nocontrol.getNodeNum() << std::endl;
 
     return 0;
 }

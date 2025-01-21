@@ -48,7 +48,7 @@ std::vector<std::vector<float>> generateRandomDataset(size_t num_vectors, size_t
 // ベクトルを挿入する関数
 void insertVectors(Serial *serial, const std::vector<std::vector<float>> &vectors, int start, int end) {
     for (int i = start; i < end; ++i) {
-        CampusInsertExecutor insert_executor(serial, static_cast<const void*>(vectors[i].data()), i);
+        SerialInsertExecutor insert_executor(serial, static_cast<const void*>(vectors[i].data()), i);
         insert_executor.insert();
     }
 }

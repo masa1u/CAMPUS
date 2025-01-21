@@ -36,6 +36,10 @@ public:
     void insertUnlock() { return insert_lock_.w_unlock(); }
     void setEntryPoint(Node *node) { entry_point_ = node; }
     void incrementNodeNum() { node_num_++; }
+    void addNode(Node *node) { all_nodes_.push_back(node); }
+    void deleteNode(Node *node) {
+        all_nodes_.erase(std::remove(all_nodes_.begin(), all_nodes_.end(), node), all_nodes_.end());
+    }
 
 private:
     const int dimension_;
@@ -47,12 +51,13 @@ private:
     Lock insert_lock_;
     Node *entry_point_;
     DistanceType distance_type_;
+    std::vector<Node*> all_nodes_;
 
 };
 
-class CampusInsertExecutor {
+class SerialInsertExecutor {
 public:
-    CampusInsertExecutor(Serial *serial, const void *insert_vector, int vector_id)
+    SerialInsertExecutor(Serial *serial, const void *insert_vector, int vector_id)
         : serial_(serial), insert_vector_(insert_vector), vector_id_(vector_id) {
         switch (serial_->getDistanceType()) {
             case Serial::L2:
@@ -64,7 +69,7 @@ public:
         }
     }
 
-    ~CampusInsertExecutor() {
+    ~SerialInsertExecutor() {
         delete distance_;
     }
 
@@ -80,14 +85,11 @@ private:
     void reassignCalculation(Node *spliting_node, Node *new_node1, Node *new_node2);
     void connectNeighbors(Node *spliting_node, Node *new_node1, Node *new_node2, int connection_limit);
     void updateNeighbors(Node *spliting_node, Node *new_node1, Node *new_node2, int connection_limit);
-    bool validation();
-    void commit();
-    void abort();
 };
 
-class CampusQueryExecutor {
+class SerialQueryExecutor {
 public:
-    CampusQueryExecutor(Serial *serial, const void *query_vector, int top_k)
+    SerialQueryExecutor(Serial *serial, const void *query_vector, int top_k)
         : serial_(serial), query_vector_(query_vector), top_k_(top_k) {
         switch (serial_->getDistanceType()) {
             case Serial::L2:
@@ -99,7 +101,7 @@ public:
         }
     }
 
-    ~CampusQueryExecutor() {
+    ~SerialQueryExecutor() {
         delete distance_;
     }
 

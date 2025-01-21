@@ -7,8 +7,8 @@
 
 class Node {
 public:
-    Node(int max_posting_size, int dimension, size_t element_size)
-        : archived_(false), version_count_(0),
+    Node(int max_posting_size, int dimension, size_t element_size, Node *prev_node = nullptr)
+        : archived_(false), version_count_(0), prev_node_(prev_node),
             latest_version_(new Version(0, this, nullptr, max_posting_size, dimension, element_size)) {};
 
     Version *getLatestVersion() const { return latest_version_; }
