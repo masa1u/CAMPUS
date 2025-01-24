@@ -7,6 +7,7 @@
 #include <vector>
 #include <mutex>
 #include <memory>
+#include <unordered_set>
 
 class Campus {
 public:
@@ -52,6 +53,56 @@ public:
         all_nodes_ = new_nodes;
     }
 
+    void printAllVectors() {
+        int count = 0;
+        std::unordered_set<int> id_set;
+        for (Node *node : *all_nodes_) {
+            if (!node->isArchived()) {
+                std::cout << "Node " << count << " size" << node->getLatestVersion()->getVectorNum() << std::endl;
+                Entity **posting = node->getLatestVersion()->getPosting();
+                for (int i = 0; i < node->getLatestVersion()->getVectorNum(); ++i) {
+                    const void *vector = posting[i]->getVector();
+                    // print ID
+                    // std::cout << posting[i]->id << " ";
+                    // id_setにIDが既にないか確認
+                    if (id_set.find(posting[i]->id) != id_set.end()) {
+                        std::cout << "ID is duplicated " << posting[i]->id << std::endl;
+                    } else {
+                        id_set.insert(posting[i]->id);
+                    }
+
+                }
+                // std::endl(std::cout);
+                count++;
+            }
+        }
+    }
+
+    int countAllVectors() {
+        int count = 0;
+        for (Node *node : *all_nodes_) {
+            if (!node->isArchived()) {
+                count += node->getLatestVersion()->getVectorNum();
+            }
+        }
+        return count;
+    }
+
+    bool checkAlreadyExist(int id) {
+        std::unordered_set<int> id_set;
+        for (Node *node : *all_nodes_) {
+            if (!node->isArchived()) {
+                Entity **posting = node->getLatestVersion()->getPosting();
+                for (int i = 0; i < node->getLatestVersion()->getVectorNum(); ++i) {
+                    if (posting[i]->id == id) {
+                        return true;
+                    }
+                }
+            }
+        }
+        return false;
+    }
+
 private:
     const int dimension_;
     const int posting_limit_;
@@ -87,6 +138,7 @@ public:
 
     void insert();
 
+
 private:
     Campus *campus_;
     Distance *distance_;
@@ -104,6 +156,23 @@ private:
     bool validation();
     void commit();
     void abort();
+
+    int countAfterAllVectors() {
+        // for debug
+        int count = 0;
+        for (Version *version : new_versions_) {
+            count += version->getVectorNum();
+        }
+        return count;
+    }
+    int countBeforeAllVectors() {
+        // for debug
+        int count = 0;
+        for (Version *version : changed_versions_) {
+            count += version->getVectorNum();
+        }
+        return count;
+    }
 };
 
 class CampusQueryExecutor {

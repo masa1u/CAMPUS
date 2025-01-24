@@ -7,8 +7,13 @@ Node *NoControl::findExactNearestNode(const void *query_vector, Distance *distan
     Node *nearest_node = nullptr;
     float min_distance = std::numeric_limits<float>::max();
 
-    for (Node *node : all_nodes_) {
-        assert(node != nullptr);
+    std::shared_ptr<std::vector<Node*>> nodes_snapshot;
+    {
+        std::lock_guard<std::mutex> lock(mutex_);
+        nodes_snapshot = all_nodes_;
+    }
+
+    for (Node *node : *nodes_snapshot) {
         float current_distance = distance->calculateDistance(static_cast<const float*>(node->getCentroid()), static_cast<const float*>(query_vector), dimension_);
 
         if (current_distance < min_distance) {
@@ -16,7 +21,6 @@ Node *NoControl::findExactNearestNode(const void *query_vector, Distance *distan
             nearest_node = node;
         }
     }
-
     return nearest_node;
 }
 

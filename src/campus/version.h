@@ -56,6 +56,7 @@ public:
         out_neighbors_.erase(std::remove(out_neighbors_.begin(), out_neighbors_.end(), neighbor), out_neighbors_.end());
     }
     void setUpdaterId(int updater_id) { updater_id_ = updater_id; }
+    int getInNeighborsSize() { return in_neighbors_.size(); }
 
 private:
     const int version_;

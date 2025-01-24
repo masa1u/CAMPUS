@@ -7,6 +7,11 @@
 #include <algorithm>
 #include <thread>
 #include <chrono>
+#include <fstream>
+#include <string>
+#include <cassert>
+#include <unordered_set>
+#include <filesystem>
 
 // データをL2正規化する関数
 void normalizeDataset(std::vector<std::vector<float>> &dataset) {
@@ -26,22 +31,48 @@ void normalizeDataset(std::vector<std::vector<float>> &dataset) {
     }
 }
 
-
-// 乱数でデータセットを生成する関数
-std::vector<std::vector<float>> generateRandomDataset(size_t num_vectors, size_t dimension) {
-    std::vector<std::vector<float>> dataset(num_vectors, std::vector<float>(dimension));
-    std::srand(static_cast<unsigned int>(std::time(nullptr)));
-
-    for (auto &vec : dataset) {
-        for (auto &value : vec) {
-            value = static_cast<float>(std::rand()) / RAND_MAX;
-        }
+// fvecsファイルを読み込む関数
+std::vector<std::vector<float>> readFvecs(const std::string &file_path) {
+    std::vector<std::vector<float>> vectors;
+    std::ifstream input(file_path, std::ios::binary);
+    if (!input) {
+        std::cerr << "Error opening file: " << file_path << std::endl;
+        return vectors;
     }
 
-    // データセットを正規化
-    normalizeDataset(dataset);
+    while (input) {
+        int dim;
+        input.read(reinterpret_cast<char*>(&dim), sizeof(int));
+        if (!input) break;
 
-    return dataset;
+        std::vector<float> vec(dim);
+        input.read(reinterpret_cast<char*>(vec.data()), dim * sizeof(float));
+        vectors.push_back(vec);
+    }
+
+    return vectors;
+}
+
+// ivecsファイルを読み込む関数
+std::vector<std::vector<int>> readIvecs(const std::string &file_path) {
+    std::vector<std::vector<int>> vectors;
+    std::ifstream input(file_path, std::ios::binary);
+    if (!input) {
+        std::cerr << "Error opening file: " << file_path << std::endl;
+        return vectors;
+    }
+
+    while (input) {
+        int dim;
+        input.read(reinterpret_cast<char*>(&dim), sizeof(int));
+        if (!input) break;
+
+        std::vector<int> vec(dim);
+        input.read(reinterpret_cast<char*>(vec.data()), dim * sizeof(int));
+        vectors.push_back(vec);
+    }
+
+    return vectors;
 }
 
 // ベクトルを挿入する関数
@@ -52,55 +83,139 @@ void insertVectors(Campus *campus, const std::vector<std::vector<float>> &vector
     }
 }
 
+// 類似ベクトル検索を行う関数
+void searchVectors(Campus *campus, const std::vector<std::vector<float>> &queries, int start, int end, int top_k, std::vector<std::vector<int>> &results) {
+    for (int i = start; i < end; ++i) {
+        CampusQueryExecutor query_executor(campus, static_cast<const void*>(queries[i].data()), top_k);
+        std::vector<int> result = query_executor.query();
+        // std::vector<int> result = campus->topKSearch(static_cast<const void*>(queries[i].data()), top_k, new L2Distance(), campus->getNodeNum());
+        results[i] = result;
+        //print result
+        // std::cout << result.size() << std::endl;
+    }
+}
+
+// リコールを計算する関数
+float calculateRecall(const std::vector<std::vector<int>> &results, const std::vector<std::vector<int>> &groundtruth) {
+    int correct = 0;
+    int total = 0;
+    for (size_t i = 0; i < results.size(); ++i) {
+        std::unordered_set<int> groundtruth_set(groundtruth[i].begin(), groundtruth[i].end());
+        for (int id : results[i]) {
+            if (groundtruth_set.find(id) != groundtruth_set.end()) {
+                ++correct;
+            }
+        }
+        total += groundtruth[i].size();
+    }
+    return static_cast<float>(correct) / total;
+}
 
 int main(int argc, char *argv[]) {
     if (argc != 3) {
-        std::cerr << "Usage: " << argv[0] << " <num_threads> <dataset_path>" << std::endl;
+        std::cerr << "Usage: " << argv[0] << " <num_threads> <dataset_type>" << std::endl;
         return 1;
     }
 
     int num_threads = std::stoi(argv[1]);
-    // std::string dataset_path = argv[2];
+    std::string dataset_type = argv[2];
 
-    Campus::DistanceType distance_type = Campus::L2; // または Campus::Angular
-    Campus campus(128, 20, 10, distance_type, sizeof(float));
+    std::string base_file, query_file, groundtruth_file;
+    std::string current_path = std::filesystem::current_path().string();
 
-    // データセットを生成（L2正規化を含む）
-    std::vector<std::vector<float>> vectors = generateRandomDataset(1000, 128);
-
-    if (vectors.size() == 0 || vectors[0].size() != 128) {
-        std::cerr << "Invalid dataset dimensions or empty dataset." << std::endl;
+    if (dataset_type == "siftsmall") {
+        base_file = current_path + "/../benchmarks/datasets/siftsmall/siftsmall_base.fvecs";
+        query_file = current_path + "/../benchmarks//datasets/siftsmall/siftsmall_query.fvecs";
+        groundtruth_file = current_path + "/../benchmarks//datasets/siftsmall/siftsmall_groundtruth.ivecs";
+    } else if (dataset_type == "sift") {
+        base_file = current_path + "/../benchmarks//datasets/sift/sift_base.fvecs";
+        query_file = current_path + "/../benchmarks//datasets/sift/sift_query.fvecs";
+        groundtruth_file = current_path + "/../benchmarks/datasets/sift/sift_groundtruth.ivecs";
+    } else {
+        std::cerr << "Invalid dataset type: " << dataset_type << std::endl;
         return 1;
     }
 
-    // 先頭の1000件だけを使う
-    if (vectors.size() > 1000) {
-        vectors.resize(1000);
+    Campus::DistanceType distance_type = Campus::L2; // または Campus::Angular
+    Campus campus(128, 100, 10, distance_type, sizeof(float));
+
+    // ベースデータセットを読み込む
+    std::vector<std::vector<float>> base_vectors = readFvecs(base_file);
+    if (base_vectors.empty()) {
+        std::cerr << "Failed to read base vectors from " << base_file << std::endl;
+        return 1;
     }
+
+    // クエリデータセットを読み込む
+    std::vector<std::vector<float>> query_vectors = readFvecs(query_file);
+    if (query_vectors.empty()) {
+        std::cerr << "Failed to read query vectors from " << query_file << std::endl;
+        return 1;
+    }
+
+    // グラウンドトゥルースを読み込む
+    std::vector<std::vector<int>> groundtruth = readIvecs(groundtruth_file);
+    if (groundtruth.empty()) {
+        std::cerr << "Failed to read groundtruth from " << groundtruth_file << std::endl;
+        return 1;
+    }
+
+    // base_vectorsの件数を表示
+    std::cout << "Base vectors: " << base_vectors.size() << std::endl;
 
     // スループット性能とレイテンシを計測
     auto start_time = std::chrono::high_resolution_clock::now();
 
     std::vector<std::thread> threads;
-    int vectors_per_thread = vectors.size() / num_threads;
+    int vectors_per_thread = base_vectors.size() / num_threads;
     for (int i = 0; i < num_threads; ++i) {
         int start = i * vectors_per_thread;
-        int end = (i == num_threads - 1) ? vectors.size() : (i + 1) * vectors_per_thread;
-        threads.emplace_back(insertVectors, &campus, std::ref(vectors), start, end);
+        int end = (i == num_threads - 1) ? base_vectors.size() : (i + 1) * vectors_per_thread;
+        threads.emplace_back(insertVectors, &campus, std::ref(base_vectors), start, end);
     }
 
     for (auto &thread : threads) {
         thread.join();
     }
 
+    // campus.printAllVectors();
+    std::cout << campus.countAllVectors() << std::endl;
+
     auto end_time = std::chrono::high_resolution_clock::now();
     std::chrono::duration<double> elapsed = end_time - start_time;
 
-    std::cout << "Inserted " << vectors.size() << " vectors using " << num_threads << " threads in "
+    std::cout << "Inserted " << base_vectors.size() << " vectors using " << num_threads << " threads in "
               << elapsed.count() << " seconds.\n";
-    std::cout << "Throughput: " << vectors.size() / elapsed.count() << " vectors/second\n";
-    std::cout << "Latency: " << elapsed.count() / vectors.size() << " seconds/vector\n";
-    std::cout << "Node num: " << campus.getNodeNum() << std::endl;
+    std::cout << "Throughput: " << base_vectors.size() / elapsed.count() << " vectors/second\n";
+    std::cout << "Latency: " << elapsed.count() / base_vectors.size() << " seconds/vector\n";
+
+    // // 類似ベクトル検索をマルチスレッドで行う
+    // std::vector<std::vector<int>> results(query_vectors.size());
+    // start_time = std::chrono::high_resolution_clock::now();
+
+    // std::vector<std::thread> search_threads;
+    // int queries_per_thread = query_vectors.size() / num_threads;
+    // for (int i = 0; i < num_threads; ++i) {
+    //     int start = i * queries_per_thread;
+    //     int end = (i == num_threads - 1) ? query_vectors.size() : (i + 1) * queries_per_thread;
+    //     search_threads.emplace_back(searchVectors, &campus, std::ref(query_vectors), start, end, 100, std::ref(results));
+    // }
+
+    // for (auto &thread : search_threads) {
+    //     thread.join();
+    // }
+
+    // end_time = std::chrono::high_resolution_clock::now();
+    // elapsed = end_time - start_time;
+
+    // std::cout << "Searched " << query_vectors.size() << " queries using " << num_threads << " threads in "
+    //           << elapsed.count() << " seconds.\n";
+    // std::cout << "Throughput: " << query_vectors.size() / elapsed.count() << " queries/second\n";
+    // std::cout << "Latency: " << elapsed.count() / query_vectors.size() << " seconds/query\n";
+
+    // // リコールを計算
+    // float recall = calculateRecall(results, groundtruth);
+    // std::cout << "Recall: " << recall << std::endl;
 
     return 0;
 }

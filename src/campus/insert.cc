@@ -79,6 +79,8 @@ void CampusInsertExecutor::splitCalculation(Version *spliting_version, const voi
 
     new_nodes_.push_back(new_node1);
     new_nodes_.push_back(new_node2);
+    new_versions_.push_back(new_node1->getLatestVersion());
+    new_versions_.push_back(new_node2->getLatestVersion());
     Entity **posting = spliting_version->getPosting();
 
     // randomly assign vectors to new nodes
@@ -150,7 +152,8 @@ void CampusInsertExecutor::connectNeighbors(Version *spliting_version, Node *new
         bool already_updated = false;
         Version *new_version = nullptr;
         for (Version *existing_version : new_versions_) {
-            if (existing_version->getNode() == neighbor_node->getLatestVersion()->getNode()) {
+            // ここでgetLatestVersion()を使うべきかどうか
+            if (existing_version->getNode() == neighbor_node) {
                 new_version = existing_version;
                 already_updated = true;
                 break;
@@ -168,7 +171,7 @@ void CampusInsertExecutor::connectNeighbors(Version *spliting_version, Node *new
         }
         new_version->addInNeighbor(new_node1);
         new_version->addInNeighbor(new_node2);
-        new_version->deleteInNeighbor(spliting_version->getNode());    
+        new_version->deleteInNeighbor(spliting_version->getNode());
     }
     neighbors1.push_back(new_node2);
     neighbors2.push_back(new_node1);
@@ -290,10 +293,7 @@ void CampusInsertExecutor::updateNeighbors(Version *spliting_version, Node *new_
         if (new_version->getOutNeighbors().size() > connection_limit) {
             float max_distance = 0;
             Node* farthest_neighbor = nullptr;
-            // FIXME: neighbor_nodeを重複して定義している
             for (Node* neighbor_neighbor : new_version->getOutNeighbors()) {
-                // TODO: neighbor_nodeをvalidationするchanged_nodes_に含めるべきか
-                // validationしなくても、NPA違反は起きない。グラフの接続の問題
                 float distance = distance_->calculateDistance(new_version->getCentroid(),
                     neighbor_neighbor->getLatestVersion()->getCentroid(), campus_->getDimension());
                 if (distance > max_distance) {
@@ -375,10 +375,14 @@ void CampusInsertExecutor::reassignCalculation(Version *spliting_version, Node *
             } else {
                 int vector_id = posting1[i]->id;
                 new_node1->getLatestVersion()->deleteVector(vector_id);
+                assert(closest_version != new_node2->getLatestVersion());
                 if (closest_version->canAddVector()) {
                     closest_version->addVector(vector, vector_id);
                 } else {
                     Version *split_version = closest_version;
+                    // delete split_version from new_versions_
+                    new_versions_.erase(std::remove(new_versions_.begin(), new_versions_.end(),
+                        split_version), new_versions_.end());
                     splitCalculation(split_version, vector, vector_id);
                 }
                 i--;
@@ -424,10 +428,13 @@ void CampusInsertExecutor::reassignCalculation(Version *spliting_version, Node *
             } else {
                 int vector_id = posting2[i]->id;
                 new_node2->getLatestVersion()->deleteVector(vector_id);
+                assert(closest_version != new_node1->getLatestVersion());
                 if (closest_version->canAddVector()) {
                     closest_version->addVector(vector, vector_id);
                 } else {
                     Version *split_version = closest_version;
+                    new_versions_.erase(std::remove(new_versions_.begin(), new_versions_.end(),
+                        split_version), new_versions_.end());
                     splitCalculation(split_version, vector, vector_id);
                 }
                 i--;
@@ -435,9 +442,20 @@ void CampusInsertExecutor::reassignCalculation(Version *spliting_version, Node *
         }
     }
 
-    std::vector<Node*> in_neighbors = spliting_version->getInNeighbors();
+    // new_node1とnew_node2のin_neighborsの集合を取得してstd::vectorに変換
+    std::unordered_set<Node*> in_neighbors_set;
+    for (Node* neighbor_node : new_node1->getLatestVersion()->getInNeighbors()) {
+        in_neighbors_set.insert(neighbor_node);
+    }
+    for (Node* neighbor_node : new_node2->getLatestVersion()->getInNeighbors()) {
+        in_neighbors_set.insert(neighbor_node);
+    }
+    std::vector<Node*> in_neighbors(in_neighbors_set.begin(), in_neighbors_set.end());
 
     for (Node* neighbor_node : in_neighbors){
+        if (neighbor_node == new_node1 || neighbor_node == new_node2) {
+            continue;
+        }
         Version *neighbor = nullptr;
         for (Version *existing_version : new_versions_) {
             if (existing_version->getNode() == neighbor_node) {
@@ -450,7 +468,7 @@ void CampusInsertExecutor::reassignCalculation(Version *spliting_version, Node *
         Entity **posting = neighbor->getPosting();
         for (int i = 0; i < neighbor->getVectorNum(); ++i) {
             const void *vector = posting[i]->getVector();
-            const void *old_centroid = neighbor_node->getLatestVersion()->getCentroid();
+            const void *old_centroid = spliting_version->getCentroid();
             const void *new_centroid1 = new_node1->getLatestVersion()->getCentroid();
             const void *new_centroid2 = new_node2->getLatestVersion()->getCentroid();
             float old_distance = distance_->calculateDistance(vector, old_centroid, campus_->getDimension());
@@ -466,7 +484,6 @@ void CampusInsertExecutor::reassignCalculation(Version *spliting_version, Node *
                     int vector_id = posting[i]->id;
                     neighbor->deleteVector(vector_id);
                     if (new_distance1 < new_distance2) {
-                        // addVectorがよくない
                         if (new_node1->getLatestVersion()->canAddVector()) {
                             new_node1->getLatestVersion()->addVector(vector, vector_id);
                         } else {
@@ -483,8 +500,8 @@ void CampusInsertExecutor::reassignCalculation(Version *spliting_version, Node *
                             splitCalculation(split_version, vector, vector_id);
                         }
                     }
-                    // 削除した時はpostingのindexがずれるので、iをデクリメント
                     i--;
+
                 }
             }
         }

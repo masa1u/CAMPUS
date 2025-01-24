@@ -2,6 +2,7 @@
 #include <cassert>
 
 void NoControlInsertExecutor::insert(){
+RETRY:
     if (nocontrol_->getNodeNum()==0){
         Node *new_node = new Node(10, 10, sizeof(float));
         nocontrol_->addNode(new_node);
@@ -10,7 +11,7 @@ void NoControlInsertExecutor::insert(){
         new_node->addVector(insert_vector_, vector_id_);
     }else{
         Node *nearest_node = nocontrol_->findExactNearestNode(insert_vector_, distance_);
-        assert(nearest_node != nullptr);
+        if (nearest_node == nullptr) goto RETRY;
         if (nearest_node->canAddVector()){
             nearest_node->addVector(insert_vector_, vector_id_);
         }else{

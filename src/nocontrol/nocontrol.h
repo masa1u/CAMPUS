@@ -4,6 +4,9 @@
 #include "node.h"
 #include "../utils/distance.h"
 #include <cassert>
+#include <vector>
+#include <mutex>
+#include <memory>
 
 class NoControl {
 public:
@@ -31,9 +34,16 @@ public:
     std::vector<Node*> findNearestNodes(const void *query_vector, Distance *distance, int n);
     DistanceType getDistanceType() const { return distance_type_; }
     void incrementNodeNum() { node_num_++; }
-    void addNode(Node *node) { all_nodes_.push_back(node); }
+    void addNode(Node *node) {
+        std::lock_guard<std::mutex> lock(mutex_);
+        auto new_nodes = std::make_shared<std::vector<Node*>>(*all_nodes_);
+        new_nodes->push_back(node);
+        all_nodes_ = new_nodes;
+    }
     void deleteNode(Node *node) {
-        all_nodes_.erase(std::remove(all_nodes_.begin(), all_nodes_.end(), node), all_nodes_.end());
+        auto new_nodes = std::make_shared<std::vector<Node*>>(*all_nodes_);
+        new_nodes->erase(std::remove(new_nodes->begin(), new_nodes->end(), node), new_nodes->end());
+        all_nodes_ = new_nodes;
     }
 
 private:
@@ -44,7 +54,8 @@ private:
     size_t element_size_;
     Node *entry_point_;
     int node_num_;
-    std::vector<Node*> all_nodes_;
+    std::mutex mutex_;
+    std::shared_ptr<std::vector<Node*>> all_nodes_ = std::make_shared<std::vector<Node*>>();
 };
 
 class NoControlInsertExecutor {

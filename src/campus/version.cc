@@ -26,6 +26,8 @@ void Version::addVector(const void* vector, const int vector_id) {
     if (vector_num_ < max_num_) {
         posting_[vector_num_] = new Entity(vector_id, vector, dimension_, element_size_);
         vector_num_++;
+    }else{
+        std::cout << "Can't add vector" << std::endl;
     }
 }
 
