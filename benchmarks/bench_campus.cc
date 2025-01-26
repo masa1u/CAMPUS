@@ -178,7 +178,7 @@ int main(int argc, char *argv[]) {
         thread.join();
     }
 
-    // campus.printAllVectors();
+    campus.printAllVectors();
     std::cout << campus.countAllVectors() << std::endl;
 
     auto end_time = std::chrono::high_resolution_clock::now();
