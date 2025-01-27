@@ -86,7 +86,7 @@ void insertVectors(Campus *campus, const std::vector<std::vector<float>> &vector
 // 類似ベクトル検索を行う関数
 void searchVectors(Campus *campus, const std::vector<std::vector<float>> &queries, int start, int end, int top_k, std::vector<std::vector<int>> &results) {
     for (int i = start; i < end; ++i) {
-        CampusQueryExecutor query_executor(campus, static_cast<const void*>(queries[i].data()), top_k);
+        CampusQueryExecutor query_executor(campus, static_cast<const void*>(queries[i].data()), top_k, 10);
         std::vector<int> result = query_executor.query();
         // std::vector<int> result = campus->topKSearch(static_cast<const void*>(queries[i].data()), top_k, new L2Distance(), campus->getNodeNum());
         results[i] = result;
@@ -178,44 +178,41 @@ int main(int argc, char *argv[]) {
         thread.join();
     }
 
-    campus.printAllVectors();
-    std::cout << campus.countAllVectors() << std::endl;
-
     auto end_time = std::chrono::high_resolution_clock::now();
     std::chrono::duration<double> elapsed = end_time - start_time;
 
-    std::cout << "Inserted " << base_vectors.size() << " vectors using " << num_threads << " threads in "
+    std::cout << "Inserted " << campus.countAllVectors() << " vectors using " << num_threads << " threads in "
               << elapsed.count() << " seconds.\n";
     std::cout << "Throughput: " << base_vectors.size() / elapsed.count() << " vectors/second\n";
     std::cout << "Latency: " << elapsed.count() / base_vectors.size() << " seconds/vector\n";
 
-    // // 類似ベクトル検索をマルチスレッドで行う
-    // std::vector<std::vector<int>> results(query_vectors.size());
-    // start_time = std::chrono::high_resolution_clock::now();
+    // 類似ベクトル検索をマルチスレッドで行う
+    std::vector<std::vector<int>> results(query_vectors.size());
+    start_time = std::chrono::high_resolution_clock::now();
 
-    // std::vector<std::thread> search_threads;
-    // int queries_per_thread = query_vectors.size() / num_threads;
-    // for (int i = 0; i < num_threads; ++i) {
-    //     int start = i * queries_per_thread;
-    //     int end = (i == num_threads - 1) ? query_vectors.size() : (i + 1) * queries_per_thread;
-    //     search_threads.emplace_back(searchVectors, &campus, std::ref(query_vectors), start, end, 100, std::ref(results));
-    // }
+    std::vector<std::thread> search_threads;
+    int queries_per_thread = query_vectors.size() / num_threads;
+    for (int i = 0; i < num_threads; ++i) {
+        int start = i * queries_per_thread;
+        int end = (i == num_threads - 1) ? query_vectors.size() : (i + 1) * queries_per_thread;
+        search_threads.emplace_back(searchVectors, &campus, std::ref(query_vectors), start, end, 100, std::ref(results));
+    }
 
-    // for (auto &thread : search_threads) {
-    //     thread.join();
-    // }
+    for (auto &thread : search_threads) {
+        thread.join();
+    }
 
-    // end_time = std::chrono::high_resolution_clock::now();
-    // elapsed = end_time - start_time;
+    end_time = std::chrono::high_resolution_clock::now();
+    elapsed = end_time - start_time;
 
-    // std::cout << "Searched " << query_vectors.size() << " queries using " << num_threads << " threads in "
-    //           << elapsed.count() << " seconds.\n";
-    // std::cout << "Throughput: " << query_vectors.size() / elapsed.count() << " queries/second\n";
-    // std::cout << "Latency: " << elapsed.count() / query_vectors.size() << " seconds/query\n";
+    std::cout << "Searched " << query_vectors.size() << " queries using " << num_threads << " threads in "
+              << elapsed.count() << " seconds.\n";
+    std::cout << "Throughput: " << query_vectors.size() / elapsed.count() << " queries/second\n";
+    std::cout << "Latency: " << elapsed.count() / query_vectors.size() << " seconds/query\n";
 
-    // // リコールを計算
-    // float recall = calculateRecall(results, groundtruth);
-    // std::cout << "Recall: " << recall << std::endl;
+    // リコールを計算
+    float recall = calculateRecall(results, groundtruth);
+    std::cout << "Recall: " << recall << std::endl;
 
     return 0;
 }

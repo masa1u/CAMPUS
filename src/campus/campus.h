@@ -177,8 +177,8 @@ private:
 
 class CampusQueryExecutor {
 public:
-    CampusQueryExecutor(Campus *campus, const void *query_vector, int top_k)
-        : campus_(campus), query_vector_(query_vector), top_k_(top_k) {
+    CampusQueryExecutor(Campus *campus, const void *query_vector, int top_k, int n)
+        : campus_(campus), query_vector_(query_vector), top_k_(top_k) , n_(n) {
         switch (campus_->getDistanceType()) {
             case Campus::L2:
                 distance_ = new L2Distance();
@@ -194,7 +194,7 @@ public:
     }
 
     std::vector<int> query() {
-        return campus_->topKSearch(query_vector_, top_k_, distance_, campus_->getNodeNum());
+        return campus_->topKSearch(query_vector_, top_k_, distance_, n_);
     };
 
     private:
@@ -202,6 +202,7 @@ public:
         const void *query_vector_;
         const int top_k_;
         Distance *distance_;
+        const int n_;
 };
 
 #endif // CAMPUS_H

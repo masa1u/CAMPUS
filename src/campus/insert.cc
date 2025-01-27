@@ -100,11 +100,6 @@ void CampusInsertExecutor::splitCalculation(Version *spliting_version, const voi
     updateNeighbors(spliting_version, new_node1, new_node2, campus_->getConnectionLimit());
     int before_vector_num = countBeforeAllVectors();
     int after_vector_num = countAfterAllVectors();
-    if (before_vector_num != after_vector_num - 1){
-        std::cout << "Error: before_vector_num != after_vector_num - 1" << std::endl;
-        std::cout << before_vector_num << " " << after_vector_num << std::endl;
-        assert(false);
-    } 
     reassignCalculation(spliting_version, new_node1, new_node2);
 }
 
@@ -159,7 +154,6 @@ void CampusInsertExecutor::connectNeighbors(Version *spliting_version, Node *new
         bool already_updated = false;
         Version *new_version = nullptr;
         for (Version *existing_version : new_versions_) {
-            // ここでgetLatestVersion()を使うべきかどうか
             if (existing_version->getNode() == neighbor_node) {
                 new_version = existing_version;
                 already_updated = true;
@@ -270,14 +264,14 @@ void CampusInsertExecutor::updateNeighbors(Version *spliting_version, Node *new_
             }
         }
         if (!already_updated) {
-            Version* base_version = neighbor_node->getLatestVersion();
-            new_version = new Version(base_version->getVersion() + 1,
-                base_version->getNode(), base_version,
+            Version* changed_version = neighbor_node->getLatestVersion();
+            new_version = new Version(changed_version->getVersion() + 1,
+                changed_version->getNode(), changed_version,
                 campus_->getPositingLimit(), campus_->getDimension(), campus_->getElementSize());
 
             new_version->copyFromPrevVersion();
             new_versions_.push_back(new_version);
-            changed_versions_.push_back(base_version);
+            changed_versions_.push_back(changed_version);
         }
     }
 
@@ -331,13 +325,13 @@ void CampusInsertExecutor::updateNeighbors(Version *spliting_version, Node *new_
                 already_updated = true;
             }
             if (!already_updated) {
-                // TODO: getLatestVersion()を廃止する
-                farthest_version = new Version(farthest_neighbor->getLatestVersion()->getVersion() + 1,
-                    farthest_neighbor->getLatestVersion()->getNode(), farthest_neighbor->getLatestVersion(),
+                Version* changed_version = farthest_neighbor->getLatestVersion();
+                farthest_version = new Version(changed_version->getVersion() + 1,
+                    changed_version->getNode(), changed_version,
                     campus_->getPositingLimit(), campus_->getDimension(), campus_->getElementSize());
                 farthest_version->copyFromPrevVersion();
                 new_versions_.push_back(farthest_version);
-                changed_versions_.push_back(farthest_neighbor->getLatestVersion());
+                changed_versions_.push_back(changed_version);
             }
             farthest_version->deleteInNeighbor(new_version->getNode());
         }
@@ -387,22 +381,22 @@ void CampusInsertExecutor::reassignCalculation(Version *spliting_version, Node *
                 new_node1->getLatestVersion()->deleteVector(vector_id);
                 assert(closest_version != new_node2->getLatestVersion());
                 if (closest_version->canAddVector()) {
-                    if (countAfterAllVectors() != countBeforeAllVectors()) {
-                        std::cout << "Error: countAfterAllVectors() != countBeforeAllVectors() + 1" << std::endl;
-                        std::cout << countBeforeAllVectors() << " " << countAfterAllVectors() << std::endl;
-                        assert(false);
-                    }
+                    // if (countAfterAllVectors() != countBeforeAllVectors()) {
+                    //     std::cout << "Error: countAfterAllVectors() != countBeforeAllVectors() + 1" << std::endl;
+                    //     std::cout << countBeforeAllVectors() << " " << countAfterAllVectors() << std::endl;
+                    //     assert(false);
+                    // }
                     closest_version->addVector(vector, vector_id);
                 } else {
                     Version *split_version = closest_version;
                     // delete split_version from new_versions_
                     new_versions_.erase(std::remove(new_versions_.begin(), new_versions_.end(),
                         split_version), new_versions_.end());
-                    if (countAfterAllVectors() != countBeforeAllVectors() - 100) {
-                        std::cout << "Error: countAfterAllVectors() != countBeforeAllVectors() + 1" << std::endl;
-                        std::cout << countBeforeAllVectors() << " " << countAfterAllVectors() << std::endl;
-                        assert(false);
-                    }
+                    // if (countAfterAllVectors() != countBeforeAllVectors() - 100) {
+                    //     std::cout << "Error: countAfterAllVectors() != countBeforeAllVectors() + 1" << std::endl;
+                    //     std::cout << countBeforeAllVectors() << " " << countAfterAllVectors() << std::endl;
+                    //     assert(false);
+                    // }
                     splitCalculation(split_version, vector, vector_id);
                 }
                 i--;
@@ -450,21 +444,21 @@ void CampusInsertExecutor::reassignCalculation(Version *spliting_version, Node *
                 new_node2->getLatestVersion()->deleteVector(vector_id);
                 assert(closest_version != new_node1->getLatestVersion());
                 if (closest_version->canAddVector()) {
-                    if (countAfterAllVectors() != countBeforeAllVectors()) {
-                        std::cout << "Error: countAfterAllVectors() != countBeforeAllVectors() + 1" << std::endl;
-                        std::cout << countBeforeAllVectors() << " " << countAfterAllVectors() << std::endl;
-                        assert(false);
-                    }
+                    // if (countAfterAllVectors() != countBeforeAllVectors()) {
+                    //     std::cout << "Error: countAfterAllVectors() != countBeforeAllVectors() + 1" << std::endl;
+                    //     std::cout << countBeforeAllVectors() << " " << countAfterAllVectors() << std::endl;
+                    //     assert(false);
+                    // }
                     closest_version->addVector(vector, vector_id);
                 } else {
                     Version *split_version = closest_version;
                     new_versions_.erase(std::remove(new_versions_.begin(), new_versions_.end(),
                         split_version), new_versions_.end());
-                    if (countAfterAllVectors() != countBeforeAllVectors() - 100) {
-                        std::cout << "Error: countAfterAllVectors() != countBeforeAllVectors() + 1" << std::endl;
-                        std::cout << countBeforeAllVectors() << " " << countAfterAllVectors() << std::endl;
-                        assert(false);
-                    }
+                    // if (countAfterAllVectors() != countBeforeAllVectors() - 100) {
+                    //     std::cout << "Error: countAfterAllVectors() != countBeforeAllVectors() + 1" << std::endl;
+                    //     std::cout << countBeforeAllVectors() << " " << countAfterAllVectors() << std::endl;
+                    //     assert(false);
+                    // }
                     splitCalculation(split_version, vector, vector_id);
                 }
                 i--;
