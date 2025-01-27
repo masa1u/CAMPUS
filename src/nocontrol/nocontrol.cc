@@ -1,17 +1,19 @@
-#include "serial.h"
+#include "nocontrol.h"
 #include <queue>
-#include <vector>
-#include <limits>
-#include <algorithm>
-#include <iostream>
 #include <unordered_set>
+#include <cassert>
 
-
-Node *Serial::findExactNearestNode(const void *query_vector, Distance *distance) {
+Node *NoControl::findExactNearestNode(const void *query_vector, Distance *distance) {
     Node *nearest_node = nullptr;
     float min_distance = std::numeric_limits<float>::max();
 
-    for (Node *node : all_nodes_) {
+    std::shared_ptr<std::vector<Node*>> nodes_snapshot;
+    {
+        std::lock_guard<std::mutex> lock(mutex_);
+        nodes_snapshot = all_nodes_;
+    }
+
+    for (Node *node : *nodes_snapshot) {
         float current_distance = distance->calculateDistance(static_cast<const float*>(node->getCentroid()), static_cast<const float*>(query_vector), dimension_);
 
         if (current_distance < min_distance) {
@@ -19,11 +21,10 @@ Node *Serial::findExactNearestNode(const void *query_vector, Distance *distance)
             nearest_node = node;
         }
     }
-
     return nearest_node;
 }
 
-std::vector<Node*> Serial::findNearestNodes(const void *query_vector, Distance *distance, int n) {
+std::vector<Node*> NoControl::findNearestNodes(const void *query_vector, Distance *distance, int n) {
     std::priority_queue<std::pair<float, Node*>> pq;
     std::unordered_set<Node*> visited;
 
@@ -68,29 +69,3 @@ std::vector<Node*> Serial::findNearestNodes(const void *query_vector, Distance *
     std::reverse(result.begin(), result.end());
     return result;
 }
-
-std::vector<int> Serial::topKSearch(const void *query_vector, int top_k, Distance *distance, int n) {
-    std::vector<Node*> nearest_nodes = findNearestNodes(query_vector, distance, n);
-    std::priority_queue<std::pair<float, int>> pq;
-
-    for (Node *node : nearest_nodes) {
-        Entity **posting = node->getPosting();
-        for (int i = 0; i < node->getVectorNum(); ++i) {
-            float entity_distance = distance->calculateDistance(static_cast<const void*>(posting[i]->getVector()), static_cast<const void*>(query_vector), dimension_);
-            pq.push(std::make_pair(entity_distance, posting[i]->id));
-            if (pq.size() > top_k) {
-                pq.pop();
-            }
-        }
-    }
-
-    std::vector<int> result;
-    while (!pq.empty()) {
-        result.push_back(pq.top().second);
-        pq.pop();
-    }
-
-    std::reverse(result.begin(), result.end());
-    return result;
-}
-

@@ -35,12 +35,6 @@ public:
     std::vector<Node*> getOutNeighbors() const { return out_neighbors_; }
     Entity **getPosting() const { return posting_; }
     void calculateCentroid();
-    void printCentroid() {
-        for (int i = 0; i < dimension_; ++i) {
-            std::cout << reinterpret_cast<float*>(centroid)[i] << " ";
-        }
-        std::cout << std::endl;
-    }
     void printAllVectors() {
         for (int i = 0; i < vector_num_; ++i) {
             for (int j = 0; j < dimension_; ++j) {
@@ -52,15 +46,6 @@ public:
     bool canAddVector() const { return vector_num_ < max_num_; }
     void addVector(const void* vector, const int vector_id);
     void deleteVector(int vector_id);
-    void copyPostingFromPrevVersion();
-    void copyNeighborFromPrevVersion();
-    void copyCentroidFromPrevVersion() {
-        if (prev_version_ != nullptr && prev_version_->getCentroid() != nullptr) {
-            std::memcpy(centroid, prev_version_->getCentroid(), dimension_ * element_size_);
-        } else {
-            std::cerr << "Error: Invalid prev_version_ or prev_version_->getCentroid() in Version::copyCentroidFromPrevVersion()" << std::endl;
-        }
-    }
     void copyFromPrevVersion() ;
     void addInNeighbor(Node* neighbor);
     void deleteInNeighbor(Node* neighbor) {
@@ -71,6 +56,7 @@ public:
         out_neighbors_.erase(std::remove(out_neighbors_.begin(), out_neighbors_.end(), neighbor), out_neighbors_.end());
     }
     void setUpdaterId(int updater_id) { updater_id_ = updater_id; }
+    int getInNeighborsSize() { return in_neighbors_.size(); }
 
 private:
     const int version_;

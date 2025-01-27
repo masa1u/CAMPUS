@@ -5,6 +5,9 @@
 #include "../utils/distance.h"
 #include "../utils/lock.h"
 #include <vector>
+#include <mutex>
+#include <memory>
+#include <unordered_set>
 
 class Campus {
 public:
@@ -37,6 +40,68 @@ public:
     void switchVersion(Node *node, Version *new_version);
     void setEntryPoint(Node *node) { entry_point_ = node; }
     void incrementNodeNum() { node_num_++; }
+    void incrementUpdateCounter() { update_counter_++; }  
+    void addNode(Node *node) {
+        std::lock_guard<std::mutex> lock(mutex_);
+        auto new_nodes = std::make_shared<std::vector<Node*>>(*all_nodes_);
+        new_nodes->push_back(node);
+        all_nodes_ = new_nodes;
+    }
+    void deleteNode(Node *node) {
+        auto new_nodes = std::make_shared<std::vector<Node*>>(*all_nodes_);
+        new_nodes->erase(std::remove(new_nodes->begin(), new_nodes->end(), node), new_nodes->end());
+        all_nodes_ = new_nodes;
+    }
+
+    void printAllVectors() {
+        int count = 0;
+        std::unordered_set<int> id_set;
+        for (Node *node : *all_nodes_) {
+            if (!node->isArchived()) {
+                std::cout << "Node " << count << " size" << node->getLatestVersion()->getVectorNum() << std::endl;
+                Entity **posting = node->getLatestVersion()->getPosting();
+                for (int i = 0; i < node->getLatestVersion()->getVectorNum(); ++i) {
+                    const void *vector = posting[i]->getVector();
+                    // print ID
+                    // std::cout << posting[i]->id << " ";
+                    // id_setにIDが既にないか確認
+                    if (id_set.find(posting[i]->id) != id_set.end()) {
+                        std::cout << "ID is duplicated " << posting[i]->id << std::endl;
+                    } else {
+                        id_set.insert(posting[i]->id);
+                    }
+
+                }
+                // std::endl(std::cout);
+                count++;
+            }
+        }
+    }
+
+    int countAllVectors() {
+        int count = 0;
+        for (Node *node : *all_nodes_) {
+            if (!node->isArchived()) {
+                count += node->getLatestVersion()->getVectorNum();
+            }
+        }
+        return count;
+    }
+
+    bool checkAlreadyExist(int id) {
+        std::unordered_set<int> id_set;
+        for (Node *node : *all_nodes_) {
+            if (!node->isArchived()) {
+                Entity **posting = node->getLatestVersion()->getPosting();
+                for (int i = 0; i < node->getLatestVersion()->getVectorNum(); ++i) {
+                    if (posting[i]->id == id) {
+                        return true;
+                    }
+                }
+            }
+        }
+        return false;
+    }
 
 private:
     const int dimension_;
@@ -47,6 +112,8 @@ private:
     size_t element_size_;
     Lock validation_lock_;
     Node *entry_point_;
+    std::mutex mutex_;
+    std::shared_ptr<std::vector<Node*>> all_nodes_ = std::make_shared<std::vector<Node*>>();
     DistanceType distance_type_;
 
 };
@@ -71,6 +138,7 @@ public:
 
     void insert();
 
+
 private:
     Campus *campus_;
     Distance *distance_;
@@ -88,12 +156,29 @@ private:
     bool validation();
     void commit();
     void abort();
+
+    int countAfterAllVectors() {
+        // for debug
+        int count = 0;
+        for (Version *version : new_versions_) {
+            count += version->getVectorNum();
+        }
+        return count;
+    }
+    int countBeforeAllVectors() {
+        // for debug
+        int count = 0;
+        for (Version *version : changed_versions_) {
+            count += version->getVectorNum();
+        }
+        return count;
+    }
 };
 
 class CampusQueryExecutor {
 public:
-    CampusQueryExecutor(Campus *campus, const void *query_vector, int top_k)
-        : campus_(campus), query_vector_(query_vector), top_k_(top_k) {
+    CampusQueryExecutor(Campus *campus, const void *query_vector, int top_k, int n)
+        : campus_(campus), query_vector_(query_vector), top_k_(top_k) , n_(n) {
         switch (campus_->getDistanceType()) {
             case Campus::L2:
                 distance_ = new L2Distance();
@@ -109,7 +194,7 @@ public:
     }
 
     std::vector<int> query() {
-        return campus_->topKSearch(query_vector_, top_k_, distance_, campus_->getNodeNum());
+        return campus_->topKSearch(query_vector_, top_k_, distance_, n_);
     };
 
     private:
@@ -117,6 +202,7 @@ public:
         const void *query_vector_;
         const int top_k_;
         Distance *distance_;
+        const int n_;
 };
 
 #endif // CAMPUS_H

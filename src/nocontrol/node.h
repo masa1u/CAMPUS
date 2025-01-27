@@ -7,7 +7,8 @@
 class Node {
 public:
     Node(int max_num, int dimension, size_t element_size)
-        : max_num_(max_num), dimension_(dimension), element_size_(element_size)
+        : max_num_(max_num), dimension_(dimension), element_size_(element_size),
+        vector_num_(0)
     {
         posting_ = new Entity*[max_num_];
         centroid = new char[dimension_ * element_size_];
@@ -24,6 +25,8 @@ public:
     std::vector<Node*> getOutNeighbors() const { return out_neighbors_; }
     void addInNeighbor(Node *neighbor) { in_neighbors_.push_back(neighbor); }
     void addOutNeighbor(Node *neighbor) { out_neighbors_.push_back(neighbor); }
+    void deleteInNeighbor(Node *neighbor) { in_neighbors_.erase(std::remove(in_neighbors_.begin(), in_neighbors_.end(), neighbor), in_neighbors_.end()); }
+    void deleteOutNeighbor(Node *neighbor) { out_neighbors_.erase(std::remove(out_neighbors_.begin(), out_neighbors_.end(), neighbor), out_neighbors_.end()); }
     void calculateCentroid();
     Entity **getPosting() const { return posting_; }
 
