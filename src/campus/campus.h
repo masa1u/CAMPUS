@@ -32,8 +32,9 @@ public:
     int getConnectionLimit() const { return connection_limit_; }
 
     Node *findExactNearestNode(const void *query_vector, Distance *distance);
-    std::vector<Node*> findNearestNodes(const void *query_vector, Distance *distance, int n);
-    std::vector<int> topKSearch(const void *query_vector, int top_k, Distance *distance, int n);
+    std::vector<Node*> findExactNearestNodes(const void *query_vector, Distance *distance, int n); // for debug
+    std::vector<Node*> findNearestNodes(const void *query_vector, Distance *distance, int node_num, int pq_size);
+    std::vector<int> topKSearch(const void *query_vector, int top_k, Distance *distance, int node_num, int pq_size);
     DistanceType getDistanceType() const { return distance_type_; }
     bool validationLock() { return validation_lock_.w_trylock(); }
     void validationUnlock() { return validation_lock_.w_unlock(); }
@@ -103,6 +104,8 @@ public:
         return false;
     }
 
+    bool verifyClusterAssignments();
+
 private:
     const int dimension_;
     const int posting_limit_;
@@ -145,7 +148,6 @@ private:
     const void *insert_vector_;
     const int vector_id_;
     std::vector<Version*> changed_versions_;
-    // std::vector<Node*> changed_nodes_;
     std::vector<Node*> new_nodes_; // Newly created nodes with split
     std::vector<Version*> new_versions_; // Newly created versions without split
     void splitCalculation(Version *spliting_version, const void *insert_vector, int vector_id);
@@ -177,8 +179,8 @@ private:
 
 class CampusQueryExecutor {
 public:
-    CampusQueryExecutor(Campus *campus, const void *query_vector, int top_k, int n)
-        : campus_(campus), query_vector_(query_vector), top_k_(top_k) , n_(n) {
+    CampusQueryExecutor(Campus *campus, const void *query_vector, int top_k, int node_num, int pq_size)
+        : campus_(campus), query_vector_(query_vector), top_k_(top_k) , node_num_(node_num), pq_size_(pq_size) {
         switch (campus_->getDistanceType()) {
             case Campus::L2:
                 distance_ = new L2Distance();
@@ -194,7 +196,7 @@ public:
     }
 
     std::vector<int> query() {
-        return campus_->topKSearch(query_vector_, top_k_, distance_, n_);
+        return campus_->topKSearch(query_vector_, top_k_, distance_, node_num_, pq_size_);
     };
 
     private:
@@ -202,7 +204,8 @@ public:
         const void *query_vector_;
         const int top_k_;
         Distance *distance_;
-        const int n_;
+        const int node_num_;
+        const int pq_size_;
 };
 
 #endif // CAMPUS_H

@@ -86,7 +86,7 @@ void insertVectors(Campus *campus, const std::vector<std::vector<float>> &vector
 // 類似ベクトル検索を行う関数
 void searchVectors(Campus *campus, const std::vector<std::vector<float>> &queries, int start, int end, int top_k, std::vector<std::vector<int>> &results) {
     for (int i = start; i < end; ++i) {
-        CampusQueryExecutor query_executor(campus, static_cast<const void*>(queries[i].data()), top_k, 10);
+        CampusQueryExecutor query_executor(campus, static_cast<const void*>(queries[i].data()), top_k, 10, 30);
         std::vector<int> result = query_executor.query();
         // std::vector<int> result = campus->topKSearch(static_cast<const void*>(queries[i].data()), top_k, new L2Distance(), campus->getNodeNum());
         results[i] = result;
