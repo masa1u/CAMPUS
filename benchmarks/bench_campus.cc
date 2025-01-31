@@ -12,6 +12,19 @@
 #include <cassert>
 #include <unordered_set>
 #include <filesystem>
+#include <gflags/gflags.h>
+
+DEFINE_int32(num_threads, 1, "Number of threads");
+DEFINE_string(dataset_type, "siftsmall", "Dataset type (siftsmall, sift)");
+// parameters for Campus index itself
+DEFINE_int32(posting_limit, 100, "Posting limit");
+DEFINE_int32(connection_limit, 10, "Connection limit");
+
+// parameters for search operation
+DEFINE_int32(top_k, 10, "Number of top k elements to search");
+DEFINE_int32(node_num, 10, "Number of nodes to search");
+DEFINE_int32(pq_size, 10, "Priority queue size");
+
 
 // データをL2正規化する関数
 void normalizeDataset(std::vector<std::vector<float>> &dataset) {
@@ -86,7 +99,7 @@ void insertVectors(Campus *campus, const std::vector<std::vector<float>> &vector
 // 類似ベクトル検索を行う関数
 void searchVectors(Campus *campus, const std::vector<std::vector<float>> &queries, int start, int end, int top_k, std::vector<std::vector<int>> &results) {
     for (int i = start; i < end; ++i) {
-        CampusQueryExecutor query_executor(campus, static_cast<const void*>(queries[i].data()), top_k, 10, 30);
+        CampusQueryExecutor query_executor(campus, static_cast<const void*>(queries[i].data()), top_k, 3, 30);
         std::vector<int> result = query_executor.query();
         // std::vector<int> result = campus->topKSearch(static_cast<const void*>(queries[i].data()), top_k, new L2Distance(), campus->getNodeNum());
         results[i] = result;
@@ -112,27 +125,21 @@ float calculateRecall(const std::vector<std::vector<int>> &results, const std::v
 }
 
 int main(int argc, char *argv[]) {
-    if (argc != 3) {
-        std::cerr << "Usage: " << argv[0] << " <num_threads> <dataset_type>" << std::endl;
-        return 1;
-    }
-
-    int num_threads = std::stoi(argv[1]);
-    std::string dataset_type = argv[2];
+    gflags::ParseCommandLineFlags(&argc, &argv, true);
 
     std::string base_file, query_file, groundtruth_file;
     std::string current_path = std::filesystem::current_path().string();
 
-    if (dataset_type == "siftsmall") {
+    if (FLAGS_dataset_type == "siftsmall") {
         base_file = current_path + "/../benchmarks/datasets/siftsmall/siftsmall_base.fvecs";
         query_file = current_path + "/../benchmarks//datasets/siftsmall/siftsmall_query.fvecs";
         groundtruth_file = current_path + "/../benchmarks//datasets/siftsmall/siftsmall_groundtruth.ivecs";
-    } else if (dataset_type == "sift") {
+    } else if (FLAGS_dataset_type == "sift") {
         base_file = current_path + "/../benchmarks//datasets/sift/sift_base.fvecs";
         query_file = current_path + "/../benchmarks//datasets/sift/sift_query.fvecs";
         groundtruth_file = current_path + "/../benchmarks/datasets/sift/sift_groundtruth.ivecs";
     } else {
-        std::cerr << "Invalid dataset type: " << dataset_type << std::endl;
+        std::cerr << "Invalid dataset type: " << FLAGS_dataset_type << std::endl;
         return 1;
     }
 
@@ -167,10 +174,10 @@ int main(int argc, char *argv[]) {
     auto start_time = std::chrono::high_resolution_clock::now();
 
     std::vector<std::thread> threads;
-    int vectors_per_thread = base_vectors.size() / num_threads;
-    for (int i = 0; i < num_threads; ++i) {
+    int vectors_per_thread = base_vectors.size() / FLAGS_num_threads;
+    for (int i = 0; i < FLAGS_num_threads; ++i) {
         int start = i * vectors_per_thread;
-        int end = (i == num_threads - 1) ? base_vectors.size() : (i + 1) * vectors_per_thread;
+        int end = (i == FLAGS_num_threads - 1) ? base_vectors.size() : (i + 1) * vectors_per_thread;
         threads.emplace_back(insertVectors, &campus, std::ref(base_vectors), start, end);
     }
 
@@ -181,20 +188,23 @@ int main(int argc, char *argv[]) {
     auto end_time = std::chrono::high_resolution_clock::now();
     std::chrono::duration<double> elapsed = end_time - start_time;
 
-    std::cout << "Inserted " << campus.countAllVectors() << " vectors using " << num_threads << " threads in "
+    std::cout << "Inserted " << campus.countAllVectors() << " vectors using " << FLAGS_num_threads << " threads in "
               << elapsed.count() << " seconds.\n";
     std::cout << "Throughput: " << base_vectors.size() / elapsed.count() << " vectors/second\n";
     std::cout << "Latency: " << elapsed.count() / base_vectors.size() << " seconds/vector\n";
+
+    // Distance *distance = new L2Distance();
+    // campus.verifyClusterAssignments(distance);
 
     // 類似ベクトル検索をマルチスレッドで行う
     std::vector<std::vector<int>> results(query_vectors.size());
     start_time = std::chrono::high_resolution_clock::now();
 
     std::vector<std::thread> search_threads;
-    int queries_per_thread = query_vectors.size() / num_threads;
-    for (int i = 0; i < num_threads; ++i) {
+    int queries_per_thread = query_vectors.size() / FLAGS_num_threads;
+    for (int i = 0; i < FLAGS_num_threads; ++i) {
         int start = i * queries_per_thread;
-        int end = (i == num_threads - 1) ? query_vectors.size() : (i + 1) * queries_per_thread;
+        int end = (i == FLAGS_num_threads - 1) ? query_vectors.size() : (i + 1) * queries_per_thread;
         search_threads.emplace_back(searchVectors, &campus, std::ref(query_vectors), start, end, 100, std::ref(results));
     }
 
@@ -205,7 +215,7 @@ int main(int argc, char *argv[]) {
     end_time = std::chrono::high_resolution_clock::now();
     elapsed = end_time - start_time;
 
-    std::cout << "Searched " << query_vectors.size() << " queries using " << num_threads << " threads in "
+    std::cout << "Searched " << query_vectors.size() << " queries using " << FLAGS_num_threads << " threads in "
               << elapsed.count() << " seconds.\n";
     std::cout << "Throughput: " << query_vectors.size() / elapsed.count() << " queries/second\n";
     std::cout << "Latency: " << elapsed.count() / query_vectors.size() << " seconds/query\n";

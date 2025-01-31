@@ -104,7 +104,7 @@ public:
         return false;
     }
 
-    bool verifyClusterAssignments();
+    bool verifyClusterAssignments(Distance *distance);
 
 private:
     const int dimension_;

@@ -70,64 +70,60 @@ std::vector<Node*> Campus::findExactNearestNodes(const void *query_vector, Dista
 std::vector<Node*> Campus::findNearestNodes(const void *query_vector, Distance *distance, int node_num, int pq_size) {
     using NodeDistance = std::pair<float, Node*>;
     std::vector<NodeDistance> search_candidates;
-    // min heap for result priority queue
-    auto cmp = [](NodeDistance left, NodeDistance right) { return left.first > right.first; };
-    std::priority_queue<NodeDistance, std::vector<NodeDistance>, decltype(cmp)> result_pq(cmp);
     std::unordered_set<Node*> visited;
 
     if (entry_point_ == nullptr) return {};
-
     float distance_to_entry = distance->calculateDistance(static_cast<const float*>(entry_point_->getLatestVersion()->getCentroid()), static_cast<const float*>(query_vector), dimension_);
     search_candidates.push_back(std::make_pair(distance_to_entry, entry_point_));
 
-    while (!search_candidates.empty()) {
-        NodeDistance current = search_candidates[0];
-        search_candidates.erase(search_candidates.begin());
-
-        if (visited.find(current.second) != visited.end()) {
-            continue;
-        }
-
-        visited.insert(current.second);
-        result_pq.push(current);
-
-
-        for (Node *neighbor : current.second->getLatestVersion()->getOutNeighbors()) {
-            float distance_to_neighbor = distance->calculateDistance(static_cast<const float*>(neighbor->getLatestVersion()->getCentroid()), static_cast<const float*>(query_vector), dimension_);
-            if (visited.find(neighbor) != visited.end()) {
+    while(true) {
+        bool updated = false;
+        for (NodeDistance current : search_candidates) {
+            if (visited.find(current.second) != visited.end()) {
                 continue;
             }
-            // insert neighbor to search_candidates which is sorted by distance
-            if (search_candidates.empty()) {
-                search_candidates.push_back(std::make_pair(distance_to_neighbor, neighbor));
-            } else {
-                bool inserted = false;
-                for (int i = 0; i < search_candidates.size(); ++i) {
-                    if (distance_to_neighbor < search_candidates[i].first) {
-                        search_candidates.insert(search_candidates.begin() + i, std::make_pair(distance_to_neighbor, neighbor));
-                        inserted = true;
-                        break;
+            visited.insert(current.second);
+
+            for (Node *neighbor : current.second->getLatestVersion()->getOutNeighbors()) {
+                assert(neighbor != nullptr);
+                float distance_to_neighbor = distance->calculateDistance(static_cast<const float*>(neighbor->getLatestVersion()->getCentroid()), static_cast<const float*>(query_vector), dimension_);
+                if (visited.find(neighbor) != visited.end()) {
+                    continue;
+                }
+                // insert neighbor to search_candidates which is sorted by distance
+                if (search_candidates.empty()) {
+                    search_candidates.push_back(std::make_pair(distance_to_neighbor, neighbor));
+                } else {
+                    bool inserted = false;
+                    for (int i = 0; i < search_candidates.size(); ++i) {
+                        if (distance_to_neighbor < search_candidates[i].first) {
+                            search_candidates.insert(search_candidates.begin() + i, std::make_pair(distance_to_neighbor, neighbor));
+                            inserted = true;
+                            break;
+                        }
+                    }
+                    if (!inserted) {
+                        search_candidates.push_back(std::make_pair(distance_to_neighbor, neighbor));
                     }
                 }
-                if (!inserted) {
-                    search_candidates.push_back(std::make_pair(distance_to_neighbor, neighbor));
-                }
-            }
 
-            if (search_candidates.size() > pq_size) {
-                search_candidates.pop_back(); // 最も類似していない要素を削除
+                if (search_candidates.size() > pq_size) {
+                    search_candidates.pop_back(); // 最も類似していない要素を削除
+                }
+                updated = true;
             }
+            if(updated) break;  
+        }
+        if (!updated) {
+            break;
         }
     }
-
     std::vector<Node*> result;
-    while (!result_pq.empty() && result.size() < node_num) {
-        result.push_back(result_pq.top().second);
-        result_pq.pop();
+    for (int i = 0; i < node_num && i < node_num; ++i) {
+        result.push_back(search_candidates[i].second);
     }
     return result;
 }
-
 
 
 std::vector<int> Campus::topKSearch(const void *query_vector, int top_k, Distance *distance, int node_num, int pq_size) {
@@ -159,4 +155,42 @@ std::vector<int> Campus::topKSearch(const void *query_vector, int top_k, Distanc
 
 void Campus::switchVersion(Node *node, Version *new_version) {
     node->switchVersion(new_version);
+}
+
+bool Campus::verifyClusterAssignments(Distance *distance) {
+    int viloation_count = 0;
+    // delete all archived nodes from all_nodes_
+    all_nodes_->erase(std::remove_if(all_nodes_->begin(), all_nodes_->end(), [](Node *node) {
+        return node->isArchived();
+    }), all_nodes_->end());
+
+    for (Node *node : *all_nodes_) {
+        if (node->isArchived()) {
+            assert(false);
+            continue;
+        }
+
+        Entity **posting = node->getLatestVersion()->getPosting();
+        for (int i = 0; i < node->getLatestVersion()->getVectorNum(); ++i) {
+            float assigned_distance = distance->calculateDistance(static_cast<const float*>(posting[i]->getVector()), static_cast<const float*>(node->getLatestVersion()->getCentroid()), dimension_);
+            float min_distance = std::numeric_limits<float>::max();
+            for (Node *other_node : *all_nodes_){
+                if (node == other_node) {
+                    continue;
+                }
+                float compared_distance = distance->calculateDistance(static_cast<const float*>(posting[i]->getVector()), static_cast<const float*>(other_node->getLatestVersion()->getCentroid()), dimension_);
+                if (assigned_distance > compared_distance) {
+                    if (min_distance > compared_distance) {
+                        min_distance = compared_distance;
+                    }
+                }
+            }
+            if (min_distance < assigned_distance) {
+                std::cout << "[Viloation detected] Vec" << posting[i]->id << " " << assigned_distance << " " << min_distance << std::endl;
+                viloation_count++;
+            }
+        }
+    }
+    std::cout << "Viloation count " << viloation_count << std::endl;
+    return true;
 }
