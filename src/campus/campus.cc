@@ -127,8 +127,8 @@ std::vector<Node*> Campus::findNearestNodes(const void *query_vector, Distance *
 
 
 std::vector<int> Campus::topKSearch(const void *query_vector, int top_k, Distance *distance, int node_num, int pq_size) {
-    std::vector<Node*> nearest_nodes = findNearestNodes(query_vector, distance, node_num, pq_size);
-    // std::vector<Node*> nearest_nodes = findExactNearestNodes(query_vector, distance, node_num);
+    // std::vector<Node*> nearest_nodes = findNearestNodes(query_vector, distance, node_num, pq_size);
+    std::vector<Node*> nearest_nodes = findExactNearestNodes(query_vector, distance, node_num);
     std::priority_queue<std::pair<float, int>> pq;
 
     for (Node *node : nearest_nodes) {

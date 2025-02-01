@@ -381,22 +381,12 @@ void CampusInsertExecutor::reassignCalculation(Version *spliting_version, Node *
                 new_node1->getLatestVersion()->deleteVector(vector_id);
                 assert(closest_version != new_node2->getLatestVersion());
                 if (closest_version->canAddVector()) {
-                    // if (countAfterAllVectors() != countBeforeAllVectors()) {
-                    //     std::cout << "Error: countAfterAllVectors() != countBeforeAllVectors() + 1" << std::endl;
-                    //     std::cout << countBeforeAllVectors() << " " << countAfterAllVectors() << std::endl;
-                    //     assert(false);
-                    // }
                     closest_version->addVector(vector, vector_id);
                 } else {
                     Version *split_version = closest_version;
                     // delete split_version from new_versions_
                     new_versions_.erase(std::remove(new_versions_.begin(), new_versions_.end(),
                         split_version), new_versions_.end());
-                    // if (countAfterAllVectors() != countBeforeAllVectors() - 100) {
-                    //     std::cout << "Error: countAfterAllVectors() != countBeforeAllVectors() + 1" << std::endl;
-                    //     std::cout << countBeforeAllVectors() << " " << countAfterAllVectors() << std::endl;
-                    //     assert(false);
-                    // }
                     splitCalculation(split_version, vector, vector_id);
                 }
                 i--;
@@ -444,21 +434,11 @@ void CampusInsertExecutor::reassignCalculation(Version *spliting_version, Node *
                 new_node2->getLatestVersion()->deleteVector(vector_id);
                 assert(closest_version != new_node1->getLatestVersion());
                 if (closest_version->canAddVector()) {
-                    // if (countAfterAllVectors() != countBeforeAllVectors()) {
-                    //     std::cout << "Error: countAfterAllVectors() != countBeforeAllVectors() + 1" << std::endl;
-                    //     std::cout << countBeforeAllVectors() << " " << countAfterAllVectors() << std::endl;
-                    //     assert(false);
-                    // }
                     closest_version->addVector(vector, vector_id);
                 } else {
                     Version *split_version = closest_version;
                     new_versions_.erase(std::remove(new_versions_.begin(), new_versions_.end(),
                         split_version), new_versions_.end());
-                    // if (countAfterAllVectors() != countBeforeAllVectors() - 100) {
-                    //     std::cout << "Error: countAfterAllVectors() != countBeforeAllVectors() + 1" << std::endl;
-                    //     std::cout << countBeforeAllVectors() << " " << countAfterAllVectors() << std::endl;
-                    //     assert(false);
-                    // }
                     splitCalculation(split_version, vector, vector_id);
                 }
                 i--;
@@ -513,6 +493,7 @@ void CampusInsertExecutor::reassignCalculation(Version *spliting_version, Node *
                         } else {
                             Version *split_version = new_node1->getLatestVersion();
                             new_nodes_.erase(std::remove(new_nodes_.begin(), new_nodes_.end(), new_node1), new_nodes_.end());
+                            new_versions_.erase(std::remove(new_versions_.begin(), new_versions_.end(), new_node1->getLatestVersion()), new_versions_.end());
                             splitCalculation(split_version, vector, vector_id);
                         }
                     } else {
@@ -521,16 +502,15 @@ void CampusInsertExecutor::reassignCalculation(Version *spliting_version, Node *
                         } else {
                             Version *split_version = new_node2->getLatestVersion();
                             new_nodes_.erase(std::remove(new_nodes_.begin(), new_nodes_.end(), new_node1), new_nodes_.end());
+                            new_versions_.erase(std::remove(new_versions_.begin(), new_versions_.end(), new_node2->getLatestVersion()), new_versions_.end());
                             splitCalculation(split_version, vector, vector_id);
                         }
                     }
                     i--;
-
                 }
             }
         }
     }
-
 }
 
 bool CampusInsertExecutor::validation(){
