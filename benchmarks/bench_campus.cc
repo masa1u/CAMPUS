@@ -11,7 +11,6 @@
 #include <string>
 #include <cassert>
 #include <unordered_set>
-#include <filesystem>
 #include <gflags/gflags.h>
 
 DEFINE_int32(num_threads, 1, "Number of threads");

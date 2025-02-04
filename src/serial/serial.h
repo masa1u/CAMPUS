@@ -29,8 +29,9 @@ public:
     int getConnectionLimit() const { return connection_limit_; }
 
     Node *findExactNearestNode(const void *query_vector, Distance *distance);
-    std::vector<Node*> findNearestNodes(const void *query_vector, Distance *distance, int n);
-    std::vector<int> topKSearch(const void *query_vector, int top_k, Distance *distance, int n);
+    std::vector<Node*> findExactNearestNodes(const void *query_vector, Distance *distance, int n);
+    std::vector<Node*> findNearestNodes(const void *query_vector, Distance *distance, int node_num, int pq_size);
+    std::vector<int> topKSearch(const void *query_vector, int top_k, Distance *distance, int node_num, int pq_size);
     DistanceType getDistanceType() const { return distance_type_; }
     bool insertLock() { return insert_lock_.w_trylock(); }
     void insertUnlock() { return insert_lock_.w_unlock(); }
@@ -40,6 +41,8 @@ public:
     void deleteNode(Node *node) {
         all_nodes_.erase(std::remove(all_nodes_.begin(), all_nodes_.end(), node), all_nodes_.end());
     }
+
+    bool verifyClusterAssignments(Distance *distance);
 
 private:
     const int dimension_;
@@ -89,8 +92,8 @@ private:
 
 class SerialQueryExecutor {
 public:
-    SerialQueryExecutor(Serial *serial, const void *query_vector, int top_k)
-        : serial_(serial), query_vector_(query_vector), top_k_(top_k) {
+    SerialQueryExecutor(Serial *serial, const void *query_vector, int top_k, int node_num, int pq_size)
+        : serial_(serial), query_vector_(query_vector), top_k_(top_k), node_num_(node_num), pq_size_(pq_size) {
         switch (serial_->getDistanceType()) {
             case Serial::L2:
                 distance_ = new L2Distance();
@@ -105,12 +108,16 @@ public:
         delete distance_;
     }
 
-    std::vector<int> query();
+    std::vector<int> query(){
+        return serial_->topKSearch(query_vector_, top_k_, distance_, node_num_, pq_size_);
+    }
 
     private:
         Serial *serial_;
         const void *query_vector_;
         const int top_k_;
+        const int node_num_;
+        const int pq_size_;
         Distance *distance_;
 };
 

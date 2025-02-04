@@ -5,7 +5,6 @@
 
 
 void SerialInsertExecutor::insert(){
-RETRY:
     while (!serial_->insertLock()) {}
     // If the campus is empty, create a new node and set it as the entry point
     if (serial_->getNodeNum() == 0){
@@ -106,6 +105,10 @@ void SerialInsertExecutor::connectNeighbors(Node *spliting_node, Node *new_node1
     std::vector<Node*> neighbors1 = spliting_node->getOutNeighbors();
     std::vector<Node*> neighbors2 = spliting_node->getOutNeighbors();
 
+    for (Node* neighbor_node : neighbors1) {
+        neighbor_node->deleteInNeighbor(spliting_node);
+    }
+
     neighbors1.push_back(new_node2);
     neighbors2.push_back(new_node1);
 
@@ -175,18 +178,13 @@ void SerialInsertExecutor::updateNeighbors(Node *spliting_node, Node *new_node1,
             float max_distance = 0;
             Node* farthest_neighbor = nullptr;
             for (Node* neighbor_neighbor : neighbor_node->getOutNeighbors()) {
-                // TODO: neighbor_nodeをvalidationするchanged_nodes_に含めるべきか
-                // validationしなくても、NPA違反は起きない。グラフの接続の問題
                 float distance = distance_->calculateDistance(neighbor_node->getCentroid(),
                     neighbor_neighbor->getCentroid(), serial_->getDimension());
                 if (distance > max_distance) {
                     max_distance = distance;
                     farthest_neighbor = neighbor_neighbor;
                 }
-                // assert(distance != 0);
-                if (distance == 0){
-                    std::cout << neighbor_node->getOutNeighbors().size() << std::endl;
-                }
+                assert(distance != 0);
             }
             neighbor_node->deleteOutNeighbor(farthest_neighbor);
             farthest_neighbor->deleteInNeighbor(neighbor_node);
@@ -278,9 +276,19 @@ void SerialInsertExecutor::reassignCalculation(Node *spliting_node, Node *new_no
     }
 
 
-    std::vector<Node*> in_neighbors = spliting_node->getInNeighbors();
+    std::unordered_set<Node*> in_neighbors_set;
+    for (Node *neighbor_node : new_node1->getInNeighbors()) {
+        in_neighbors_set.insert(neighbor_node);
+    }
+    for (Node *neighbor_node : new_node2->getInNeighbors()) {
+        in_neighbors_set.insert(neighbor_node);
+    }
+    std::vector<Node*> in_neighbors(in_neighbors_set.begin(), in_neighbors_set.end());
 
     for (Node* neighbor_node : in_neighbors){
+        if (neighbor_node == new_node1 || neighbor_node == new_node2) {
+            continue;
+        }
         Entity **posting = neighbor_node->getPosting();
         for (int i = 0; i < neighbor_node->getVectorNum(); ++i) {
             const void *vector = posting[i]->getVector();
