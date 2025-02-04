@@ -200,6 +200,7 @@ int main(int argc, char *argv[]) {
     std::cout << "Throughput: " << base_vectors.size() / elapsed.count() << " vectors/second\n";
     std::cout << "Latency: " << elapsed.count() / base_vectors.size() << " seconds/vector\n";
 
+    campus.printAllVectors();
     // Distance *distance = new L2Distance();
     // campus.verifyClusterAssignments(distance);
 

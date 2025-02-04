@@ -49,7 +49,13 @@ RETRY:
 
         while(!campus_->validationLock()) {}
         if (validation()){
+            int before_vector_num = campus_->countAllVectors();
             commit();
+            int after_vector_num = campus_->countAllVectors();
+            if (before_vector_num + 1 != after_vector_num) {
+                std::cout << "before_vector_num: " << before_vector_num << " after_vector_num: " << after_vector_num << std::endl;
+                assert(false);
+            }
             if (new_nodes_.empty()) {
                 campus_->setEntryPoint(nearest_node);
                 campus_->validationUnlock();
@@ -561,6 +567,7 @@ void CampusInsertExecutor::commit(){
         assert(node != nullptr);
         campus_->addNode(node);
         node->getLatestVersion()->setUpdaterId(updater_id);
+        // cascade splitによりarchiveにされてる可能性あるから単純なincrementはできない
         campus_->incrementNodeNum();
     }
 }

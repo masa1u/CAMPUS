@@ -63,8 +63,6 @@ public:
                 Entity **posting = node->getLatestVersion()->getPosting();
                 for (int i = 0; i < node->getLatestVersion()->getVectorNum(); ++i) {
                     const void *vector = posting[i]->getVector();
-                    // print ID
-                    // std::cout << posting[i]->id << " ";
                     // id_setにIDが既にないか確認
                     if (id_set.find(posting[i]->id) != id_set.end()) {
                         std::cout << "ID is duplicated " << posting[i]->id << std::endl;
@@ -73,7 +71,6 @@ public:
                     }
 
                 }
-                // std::endl(std::cout);
                 count++;
             }
         }
