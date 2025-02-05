@@ -13,14 +13,16 @@
 #include <unordered_set>
 #include <gflags/gflags.h>
 
-DEFINE_int32(num_threads, 1, "Number of threads");
 DEFINE_string(dataset_type, "siftsmall", "Dataset type (siftsmall, sift)");
 DEFINE_int32(initial_num, 1000, "Initial number of vectors");
 // parameters for Campus index itself
 DEFINE_int32(posting_limit, 100, "Posting limit");
 DEFINE_int32(connection_limit, 10, "Connection limit");
 
+DEFINE_int32(insert_threads, 1, "Number of threads for insertion");
+
 // parameters for search operation
+DEFINE_int32(search_threads, 1, "Number of threads for search");
 DEFINE_bool(delete_archived, true, "Delete archived nodes before search");
 DEFINE_int32(top_k, 100, "Number of top k elements to search");
 DEFINE_int32(node_num, 10, "Number of nodes to search");
@@ -182,10 +184,10 @@ int main(int argc, char *argv[]) {
     auto start_time = std::chrono::high_resolution_clock::now();
 
     std::vector<std::thread> threads;
-    int vectors_per_thread = (base_vectors.size() - FLAGS_initial_num) / FLAGS_num_threads;
-    for (int i = 0; i < FLAGS_num_threads; ++i) {
+    int vectors_per_thread = (base_vectors.size() - FLAGS_initial_num) / FLAGS_insert_threads;
+    for (int i = 0; i < FLAGS_insert_threads; ++i) {
         int start = FLAGS_initial_num + i * vectors_per_thread;
-        int end = (i == FLAGS_num_threads - 1) ? base_vectors.size() : FLAGS_initial_num + (i + 1) * vectors_per_thread;
+        int end = (i == FLAGS_insert_threads - 1) ? base_vectors.size() : FLAGS_initial_num + (i + 1) * vectors_per_thread;
         threads.emplace_back(insertVectors, &campus, std::ref(base_vectors), start, end);
     }
 
@@ -196,7 +198,7 @@ int main(int argc, char *argv[]) {
     auto end_time = std::chrono::high_resolution_clock::now();
     std::chrono::duration<double> elapsed = end_time - start_time;
 
-    std::cout << "Inserted " << campus.countAllVectors() << " vectors using " << FLAGS_num_threads << " threads in "
+    std::cout << "Inserted " << campus.countAllVectors() << " vectors using " << FLAGS_insert_threads << " threads in "
               << elapsed.count() << " seconds.\n";
     std::cout << "Throughput: " << base_vectors.size() / elapsed.count() << " vectors/second\n";
     std::cout << "Latency: " << elapsed.count() / base_vectors.size() << " seconds/vector\n";
@@ -214,10 +216,10 @@ int main(int argc, char *argv[]) {
     start_time = std::chrono::high_resolution_clock::now();
 
     std::vector<std::thread> search_threads;
-    int queries_per_thread = query_vectors.size() / FLAGS_num_threads;
-    for (int i = 0; i < FLAGS_num_threads; ++i) {
+    int queries_per_thread = query_vectors.size() / FLAGS_search_threads;
+    for (int i = 0; i < FLAGS_search_threads; ++i) {
         int start = i * queries_per_thread;
-        int end = (i == FLAGS_num_threads - 1) ? query_vectors.size() : (i + 1) * queries_per_thread;
+        int end = (i == FLAGS_search_threads - 1) ? query_vectors.size() : (i + 1) * queries_per_thread;
         search_threads.emplace_back(searchVectors, &campus, std::ref(query_vectors), start, end, 100, std::ref(results));
     }
 
@@ -228,7 +230,7 @@ int main(int argc, char *argv[]) {
     end_time = std::chrono::high_resolution_clock::now();
     elapsed = end_time - start_time;
 
-    std::cout << "Searched " << query_vectors.size() << " queries using " << FLAGS_num_threads << " threads in "
+    std::cout << "Searched " << query_vectors.size() << " queries using " << FLAGS_search_threads << " threads in "
               << elapsed.count() << " seconds.\n";
     std::cout << "Throughput: " << query_vectors.size() / elapsed.count() << " queries/second\n";
     std::cout << "Latency: " << elapsed.count() / query_vectors.size() << " seconds/query\n";
