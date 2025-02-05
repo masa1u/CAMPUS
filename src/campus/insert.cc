@@ -49,13 +49,7 @@ RETRY:
 
         while(!campus_->validationLock()) {}
         if (validation()){
-            int before_vector_num = campus_->countAllVectors();
             commit();
-            int after_vector_num = campus_->countAllVectors();
-            if (before_vector_num + 1 != after_vector_num) {
-                std::cout << "before_vector_num: " << before_vector_num << " after_vector_num: " << after_vector_num << std::endl;
-                assert(false);
-            }
             if (new_nodes_.empty()) {
                 campus_->setEntryPoint(nearest_node);
                 campus_->validationUnlock();
@@ -104,8 +98,6 @@ void CampusInsertExecutor::splitCalculation(Version *spliting_version, const voi
     assignCalculation(new_node1, new_node2);
     connectNeighbors(spliting_version, new_node1, new_node2, campus_->getConnectionLimit());
     updateNeighbors(spliting_version, new_node1, new_node2, campus_->getConnectionLimit());
-    int before_vector_num = countBeforeAllVectors();
-    int after_vector_num = countAfterAllVectors();
     reassignCalculation(spliting_version, new_node1, new_node2);
 }
 
@@ -502,12 +494,9 @@ void CampusInsertExecutor::reassignCalculation(Version *spliting_version, Node *
                             // split→splitのprevious nodeを何に設定するか
                             // new_nodes_.erase(std::remove(new_nodes_.begin(), new_nodes_.end(), new_node1), new_nodes_.end());
                             new_versions_.erase(std::remove(new_versions_.begin(), new_versions_.end(), new_node1->getLatestVersion()), new_versions_.end());
-                            // if (countAfterAllVectors()+10 != countBeforeAllVectors()) {
-                            //     std::cout << "Error: countAfterAllVectors() != countBeforeAllVectors() + 1" << std::endl;
-                            //     std::cout << countBeforeAllVectors() << " " << countAfterAllVectors() << std::endl;
-                            //     assert(false);
-                            // }
                             splitCalculation(split_version, vector, vector_id);
+                            // TODO: returnして良いか検討
+                            return;
                         }
                     } else {
                         if (new_node2->getLatestVersion()->canAddVector()) {
@@ -516,12 +505,9 @@ void CampusInsertExecutor::reassignCalculation(Version *spliting_version, Node *
                             Version *split_version = new_node2->getLatestVersion();
                             // new_nodes_.erase(std::remove(new_nodes_.begin(), new_nodes_.end(), new_node1), new_nodes_.end());
                             new_versions_.erase(std::remove(new_versions_.begin(), new_versions_.end(), new_node2->getLatestVersion()), new_versions_.end());
-                            // if (countAfterAllVectors()+10 != countBeforeAllVectors() ) {
-                            //     std::cout << "Error: countAfterAllVectors() != countBeforeAllVectors() + 1" << std::endl;
-                            //     std::cout << countBeforeAllVectors() << " " << countAfterAllVectors() << std::endl;
-                            //     assert(false);
-                            // }
                             splitCalculation(split_version, vector, vector_id);
+                            // TODO: returnして良いか検討
+                            return;
                         }
                     }
                     i--;
@@ -548,11 +534,6 @@ bool CampusInsertExecutor::validation(){
 }
 
 void CampusInsertExecutor::commit(){
-    // if (countAfterAllVectors() != countBeforeAllVectors() + 1) {
-    //     std::cout << "Error: countAfterAllVectors() != countBeforeAllVectors() + 1" << std::endl;
-    //     std::cout << countBeforeAllVectors() << " " << countAfterAllVectors() << std::endl;
-    //     assert(false);
-    // }
     campus_->incrementUpdateCounter();
     int updater_id = campus_->getUpdateCounter();
     for (Version *version : new_versions_) {
@@ -567,7 +548,7 @@ void CampusInsertExecutor::commit(){
         assert(node != nullptr);
         campus_->addNode(node);
         node->getLatestVersion()->setUpdaterId(updater_id);
-        // cascade splitによりarchiveにされてる可能性あるから単純なincrementはできない
+        // TODO: cascade splitによりarchiveにされてる可能性あるから単純なincrementはできない
         campus_->incrementNodeNum();
     }
 }

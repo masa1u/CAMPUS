@@ -159,14 +159,9 @@ void Campus::switchVersion(Node *node, Version *new_version) {
 
 bool Campus::verifyClusterAssignments(Distance *distance) {
     int viloation_count = 0;
-    // delete all archived nodes from all_nodes_
-    all_nodes_->erase(std::remove_if(all_nodes_->begin(), all_nodes_->end(), [](Node *node) {
-        return node->isArchived();
-    }), all_nodes_->end());
 
     for (Node *node : *all_nodes_) {
         if (node->isArchived()) {
-            assert(false);
             continue;
         }
 
@@ -193,4 +188,42 @@ bool Campus::verifyClusterAssignments(Distance *distance) {
     }
     std::cout << "Viloation count " << viloation_count << std::endl;
     return true;
+}
+
+int Campus::countViolateVectors(Distance *distance) {
+    int viloation_count = 0;
+     // delete all archived nodes from all_nodes_
+    // all_nodes_->erase(std::remove_if(all_nodes_->begin(), all_nodes_->end(), [](Node *node) {
+    //     return node->isArchived();
+    // }), all_nodes_->end());
+
+    for (Node *node : *all_nodes_) {
+        if (node->isArchived()) {
+            continue;
+        }
+
+        Entity **posting = node->getLatestVersion()->getPosting();
+        for (int i = 0; i < node->getLatestVersion()->getVectorNum(); ++i) {
+            float assigned_distance = distance->calculateDistance(static_cast<const float*>(posting[i]->getVector()), static_cast<const float*>(node->getLatestVersion()->getCentroid()), dimension_);
+            float min_distance = std::numeric_limits<float>::max();
+            for (Node *other_node : *all_nodes_){
+                if (other_node->isArchived()) {
+                    continue;
+                }
+                if (node == other_node) {
+                    continue;
+                }
+                float compared_distance = distance->calculateDistance(static_cast<const float*>(posting[i]->getVector()), static_cast<const float*>(other_node->getLatestVersion()->getCentroid()), dimension_);
+                if (assigned_distance > compared_distance) {
+                    if (min_distance > compared_distance) {
+                        min_distance = compared_distance;
+                    }
+                }
+            }
+            if (min_distance < assigned_distance) {
+                viloation_count++;
+            }
+        }
+    }
+    return viloation_count;
 }

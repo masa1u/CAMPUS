@@ -164,3 +164,31 @@ bool Serial::verifyClusterAssignments(Distance *distance) {
     std::cout << "Viloation count " << viloation_count << std::endl;
     return true;
 }
+
+int Serial::countViolateVectors(Distance *distance) {
+    int viloation_count = 0;
+
+    for (Node *node : all_nodes_) {
+
+        Entity **posting = node->getPosting();
+        for (int i = 0; i < node->getVectorNum(); ++i) {
+            float assigned_distance = distance->calculateDistance(static_cast<const float*>(posting[i]->getVector()), static_cast<const float*>(node->getCentroid()), dimension_);
+            float min_distance = std::numeric_limits<float>::max();
+            for (Node *other_node : all_nodes_){
+                if (node == other_node) {
+                    continue;
+                }
+                float compared_distance = distance->calculateDistance(static_cast<const float*>(posting[i]->getVector()), static_cast<const float*>(other_node->getCentroid()), dimension_);
+                if (assigned_distance > compared_distance) {
+                    if (min_distance > compared_distance) {
+                        min_distance = compared_distance;
+                    }
+                }
+            }
+            if (min_distance < assigned_distance) {
+                viloation_count++;
+            }
+        }
+    }
+    return viloation_count;
+}

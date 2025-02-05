@@ -54,26 +54,26 @@ public:
         all_nodes_ = new_nodes;
     }
 
-    void printAllVectors() {
-        int count = 0;
-        std::unordered_set<int> id_set;
+    void deleteAllArchivedNodes() {
+        all_nodes_->erase(std::remove_if(all_nodes_->begin(), all_nodes_->end(),
+            [](Node *node) {
+                return node->isArchived();
+            }), all_nodes_->end());
+    }
+
+    int countLostVectors() {
+        std::unordered_set<int> indexed_ids;
+        int all_vector_num = 0;
         for (Node *node : *all_nodes_) {
             if (!node->isArchived()) {
-                std::cout << "Node " << count << " size" << node->getLatestVersion()->getVectorNum() << std::endl;
                 Entity **posting = node->getLatestVersion()->getPosting();
                 for (int i = 0; i < node->getLatestVersion()->getVectorNum(); ++i) {
-                    const void *vector = posting[i]->getVector();
-                    // id_setにIDが既にないか確認
-                    if (id_set.find(posting[i]->id) != id_set.end()) {
-                        std::cout << "ID is duplicated " << posting[i]->id << std::endl;
-                    } else {
-                        id_set.insert(posting[i]->id);
-                    }
-
+                    all_vector_num++;
+                    indexed_ids.insert(posting[i]->id);
                 }
-                count++;
             }
         }
+        return all_vector_num - indexed_ids.size();
     }
 
     int countAllVectors() {
@@ -86,22 +86,8 @@ public:
         return count;
     }
 
-    bool checkAlreadyExist(int id) {
-        std::unordered_set<int> id_set;
-        for (Node *node : *all_nodes_) {
-            if (!node->isArchived()) {
-                Entity **posting = node->getLatestVersion()->getPosting();
-                for (int i = 0; i < node->getLatestVersion()->getVectorNum(); ++i) {
-                    if (posting[i]->id == id) {
-                        return true;
-                    }
-                }
-            }
-        }
-        return false;
-    }
-
     bool verifyClusterAssignments(Distance *distance);
+    int countViolateVectors(Distance *distance);
 
 private:
     const int dimension_;

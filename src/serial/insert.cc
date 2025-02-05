@@ -312,12 +312,14 @@ void SerialInsertExecutor::reassignCalculation(Node *spliting_node, Node *new_no
                             new_node1->addVector(vector, vector_id);
                         } else {
                             split(new_node1, vector, vector_id);
+                            return;
                         }
                     } else {
                         if (new_node2->canAddVector()) {
                             new_node2->addVector(vector, vector_id);
                         } else {
                             split(new_node2, vector, vector_id);
+                            return;
                         }
                     }
                     // 削除した時はpostingのindexがずれるので、iをデクリメント

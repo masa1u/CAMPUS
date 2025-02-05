@@ -5,6 +5,7 @@
 #include "../utils/distance.h"
 #include "../utils/lock.h"
 #include <vector>
+#include <unordered_set>
 
 class Serial {
 public:
@@ -41,8 +42,28 @@ public:
     void deleteNode(Node *node) {
         all_nodes_.erase(std::remove(all_nodes_.begin(), all_nodes_.end(), node), all_nodes_.end());
     }
+    int countLostVectors(){
+        int count = 0;
+        std::unordered_set<int> indexed_ids;
+        for (Node* node : all_nodes_) {
+            Entity **posting = node->getPosting();
+            for (int i = 0; i < node->getVectorNum(); ++i) {
+                indexed_ids.insert(posting[i]->id);
+                count++;
+            }
+        }
+        return count - indexed_ids.size();
+    }
+    int countAllVectors() {
+        int count = 0;
+        for (Node *node : all_nodes_) {
+            count += node->getVectorNum();
+        }
+        return count;
+    }
 
     bool verifyClusterAssignments(Distance *distance);
+    int countViolateVectors(Distance *distance);
 
 private:
     const int dimension_;

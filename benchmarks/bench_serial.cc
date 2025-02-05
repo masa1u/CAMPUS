@@ -192,12 +192,14 @@ int main(int argc, char *argv[]) {
     auto end_time = std::chrono::high_resolution_clock::now();
     std::chrono::duration<double> elapsed = end_time - start_time;
 
-    std::cout << "Inserted " << base_vectors.size() << " vectors using " << FLAGS_num_threads << " threads in "
+    std::cout << "Inserted " << serial.countAllVectors() << " vectors using " << FLAGS_num_threads << " threads in "
               << elapsed.count() << " seconds.\n";
     std::cout << "Throughput: " << base_vectors.size() / elapsed.count() << " vectors/second\n";
     std::cout << "Latency: " << elapsed.count() / base_vectors.size() << " seconds/vector\n";
 
-    // serial.verifyClusterAssignments(new L2Distance());
+    std::cout << "All vectors: " << serial.countAllVectors() << ": lost vectors: " << serial.countLostVectors() << std::endl;
+    std::cout << "All vectors: " << serial.countAllVectors() << ": viloate vectors: " << serial.countViolateVectors(new L2Distance()) << std::endl;
+
     
     std::vector<std::vector<int>> results(query_vectors.size());
     start_time = std::chrono::high_resolution_clock::now();
