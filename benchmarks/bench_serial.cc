@@ -13,7 +13,7 @@
 #include <unordered_set>
 #include <gflags/gflags.h>
 
-DEFINE_string(dataset_type, "siftsmall", "Dataset type (siftsmall, sift)");
+DEFINE_string(dataset_type, "siftsmall", "Dataset type (siftsmall, sift, gist)");
 DEFINE_int32(initial_num, 1000, "Initial number of vectors");
 // parameters for Serial index itself
 DEFINE_int32(posting_limit, 100, "Posting limit");
@@ -139,6 +139,10 @@ int main(int argc, char *argv[]) {
         base_file = current_path + "/../benchmarks/datasets/sift/sift_base.fvecs";
         query_file = current_path + "/../benchmarks/datasets/sift/sift_query.fvecs";
         groundtruth_file = current_path + "/../benchmarks/datasets/sift/sift_groundtruth.ivecs";
+    } else if (FLAGS_dataset_type == "gist") {
+        base_file = current_path + "/../benchmarks/datasets/gist/gist_base.fvecs";
+        query_file = current_path + "/../benchmarks/datasets/gist/gist_query.fvecs";
+        groundtruth_file = current_path + "/../benchmarks/datasets/gist/gist_groundtruth.ivecs";
     } else {
         std::cerr << "Invalid dataset type: " << FLAGS_dataset_type << std::endl;
         return 1;
