@@ -11,7 +11,6 @@
 #include <string>
 #include <cassert>
 #include <unordered_set>
-#include <filesystem>
 #include <gflags/gflags.h>
 
 DEFINE_int32(num_threads, 1, "Number of threads");
@@ -22,6 +21,7 @@ DEFINE_int32(posting_limit, 100, "Posting limit");
 DEFINE_int32(connection_limit, 10, "Connection limit");
 
 // parameters for search operation
+DEFINE_bool(delete_archived, true, "Delete archived nodes before search");
 DEFINE_int32(top_k, 100, "Number of top k elements to search");
 DEFINE_int32(node_num, 10, "Number of nodes to search");
 DEFINE_int32(pq_size, 10, "Priority queue size");
@@ -201,8 +201,13 @@ int main(int argc, char *argv[]) {
     std::cout << "Throughput: " << base_vectors.size() / elapsed.count() << " vectors/second\n";
     std::cout << "Latency: " << elapsed.count() / base_vectors.size() << " seconds/vector\n";
 
-    // Distance *distance = new L2Distance();
-    // campus.verifyClusterAssignments(distance);
+    std::cout << "All vectors: " << campus.countAllVectors() << ": lost vectors: " << campus.countLostVectors() << std::endl;
+    std::cout << "All vectors: " << campus.countAllVectors() << ": viloate vectors: " << campus.countViolateVectors(new L2Distance()) << std::endl;
+
+    // campus.verifyClusterAssignments(new L2Distance());
+    if (FLAGS_delete_archived) {
+        campus.deleteAllArchivedNodes();
+    }
 
     // 類似ベクトル検索をマルチスレッドで行う
     std::vector<std::vector<int>> results(query_vectors.size());
