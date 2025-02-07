@@ -94,7 +94,12 @@ std::vector<std::vector<int>> readIvecs(const std::string &file_path) {
 }
 
 // ベクトルを挿入する関数
-void insertVectors(Campus *campus, const std::vector<std::vector<float>> &vectors, int start, int end) {
+void insertVectors(int thread_id, int &ready, const bool &start_flag, Campus *campus, const std::vector<std::vector<float>> &vectors, int start, int end) {
+    __atomic_store_n(&ready, 1, __ATOMIC_SEQ_CST);
+    while (!start_flag) {
+        std::this_thread::yield();
+    }
+
     for (int i = start; i < end; ++i) {
         CampusInsertExecutor insert_executor(campus, static_cast<const void*>(vectors[i].data()), i);
         insert_executor.insert();
@@ -102,14 +107,16 @@ void insertVectors(Campus *campus, const std::vector<std::vector<float>> &vector
 }
 
 // 類似ベクトル検索を行う関数
-void searchVectors(Campus *campus, const std::vector<std::vector<float>> &queries, int start, int end, int top_k, std::vector<std::vector<int>> &results) {
+void searchVectors(int thread_id, int &ready, const bool &start_flag, Campus *campus, const std::vector<std::vector<float>> &queries, int start, int end, int top_k, std::vector<std::vector<int>> &results) {
+    __atomic_store_n(&ready, 1, __ATOMIC_SEQ_CST);
+    while (!start_flag) {
+        std::this_thread::yield();
+    }
+
     for (int i = start; i < end; ++i) {
         CampusQueryExecutor query_executor(campus, static_cast<const void*>(queries[i].data()), FLAGS_top_k, FLAGS_node_num, FLAGS_pq_size);
         std::vector<int> result = query_executor.query();
-        // std::vector<int> result = campus->topKSearch(static_cast<const void*>(queries[i].data()), top_k, new L2Distance(), campus->getNodeNum());
         results[i] = result;
-        //print result
-        // std::cout << result.size() << std::endl;
     }
 }
 
@@ -203,16 +210,41 @@ int main(int argc, char *argv[]) {
     campus.deleteAllArchivedNodes();
     int initial_node_num = campus.getNodeNum();
 
-    // スループット性能とレイテンシを計測
-    auto start_time = std::chrono::high_resolution_clock::now();
+    bool start_flag = false;
+    std::vector<int> readys;
+    for (size_t i = 0; i < FLAGS_insert_threads; ++i)
+    {
+        readys.emplace_back(0);
+    }
 
     std::vector<std::thread> threads;
     int vectors_per_thread = (base_vectors.size() - FLAGS_initial_num) / FLAGS_insert_threads;
     for (int i = 0; i < FLAGS_insert_threads; ++i) {
         int start = FLAGS_initial_num + i * vectors_per_thread;
         int end = (i == FLAGS_insert_threads - 1) ? base_vectors.size() : FLAGS_initial_num + (i + 1) * vectors_per_thread;
-        threads.emplace_back(insertVectors, &campus, std::ref(base_vectors), start, end);
+        threads.emplace_back(insertVectors, i, std::ref(readys[i]), std::ref(start_flag), &campus, std::ref(base_vectors), start, end);
     }
+
+    while (true)
+    {
+        bool failed = false;
+        for (auto &re : readys)
+        {
+            if (!__atomic_load_n(&re, __ATOMIC_SEQ_CST))
+            {
+                failed = true;
+                break;
+            }
+        }
+        if (!failed)
+        {
+            break;
+        }
+    }
+    __atomic_store_n(&start_flag, true, __ATOMIC_SEQ_CST);
+
+    // スループット性能とレイテンシを計測
+    auto start_time = std::chrono::high_resolution_clock::now();
 
     for (auto &thread : threads) {
         thread.join();
@@ -240,6 +272,11 @@ int main(int argc, char *argv[]) {
         campus.deleteAllArchivedNodes();
     }
 
+    readys.clear();
+    readys.resize(FLAGS_search_threads);
+    for (size_t i = 0; i < FLAGS_search_threads; ++i) { readys[i] = 0; }
+    __atomic_store_n(&start_flag, false, __ATOMIC_SEQ_CST);
+
     // 類似ベクトル検索をマルチスレッドで行う
     std::vector<std::vector<int>> results(query_vectors.size());
     start_time = std::chrono::high_resolution_clock::now();
@@ -249,8 +286,27 @@ int main(int argc, char *argv[]) {
     for (int i = 0; i < FLAGS_search_threads; ++i) {
         int start = i * queries_per_thread;
         int end = (i == FLAGS_search_threads - 1) ? query_vectors.size() : (i + 1) * queries_per_thread;
-        search_threads.emplace_back(searchVectors, &campus, std::ref(query_vectors), start, end, 100, std::ref(results));
+        search_threads.emplace_back(searchVectors, i, std::ref(readys[i]), std::ref(start_flag), &campus, std::ref(query_vectors), start, end, 100, std::ref(results));
     }
+    
+    while (true)
+    {
+        bool failed = false;
+        for (auto &re : readys)
+        {
+            if (!__atomic_load_n(&re, __ATOMIC_SEQ_CST))
+            {
+                failed = true;
+                break;
+            }
+        }
+        if (!failed)
+        {
+            break;
+        }
+    }
+    __atomic_store_n(&start_flag, true, __ATOMIC_SEQ_CST);
+    start_time = std::chrono::high_resolution_clock::now();
 
     for (auto &thread : search_threads) {
         thread.join();
