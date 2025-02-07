@@ -7,6 +7,7 @@
 #include <vector>
 #include <mutex>
 #include <memory>
+#include <algorithm>
 
 class NoControl {
 public:
