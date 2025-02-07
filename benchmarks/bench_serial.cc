@@ -13,17 +13,21 @@
 #include <unordered_set>
 #include <gflags/gflags.h>
 
-DEFINE_int32(num_threads, 1, "Number of threads");
-DEFINE_string(dataset_type, "siftsmall", "Dataset type (siftsmall, sift)");
+DEFINE_string(dataset_type, "siftsmall", "Dataset type (siftsmall, sift, gist)");
 DEFINE_int32(initial_num, 1000, "Initial number of vectors");
 // parameters for Serial index itself
 DEFINE_int32(posting_limit, 100, "Posting limit");
 DEFINE_int32(connection_limit, 10, "Connection limit");
 
+DEFINE_int32(insert_threads, 1, "Number of threads for insertion");
+
 // parameters for search operation
+DEFINE_int32(search_threads, 1, "Number of threads for search");
 DEFINE_int32(top_k, 100, "Number of top k elements to search");
 DEFINE_int32(node_num, 10, "Number of nodes to search");
 DEFINE_int32(pq_size, 10, "Priority queue size");
+
+DEFINE_string(output_file, "", "Output csv file path");
 
 // データをL2正規化する関数
 void normalizeDataset(std::vector<std::vector<float>> &dataset) {
@@ -88,7 +92,12 @@ std::vector<std::vector<int>> readIvecs(const std::string &file_path) {
 }
 
 // ベクトルを挿入する関数
-void insertVectors(Serial *serial, const std::vector<std::vector<float>> &vectors, int start, int end) {
+void insertVectors(int thread_id, int &ready, const bool &start_flag, Serial *serial, const std::vector<std::vector<float>> &vectors, int start, int end) {
+    __atomic_store_n(&ready, 1, __ATOMIC_SEQ_CST);
+    while (!__atomic_load_n(&start_flag, __ATOMIC_SEQ_CST))
+    {
+    }
+
     for (int i = start; i < end; ++i) {
         SerialInsertExecutor insert_executor(serial, static_cast<const void*>(vectors[i].data()), i);
         insert_executor.insert();
@@ -96,7 +105,12 @@ void insertVectors(Serial *serial, const std::vector<std::vector<float>> &vector
 }
 
 // 類似ベクトル検索を行う関数
-void searchVectors(Serial *serial, const std::vector<std::vector<float>> &queries, int start, int end, int top_k, std::vector<std::vector<int>> &results) {
+void searchVectors(int thread_id, int &ready, const bool &start_flag, Serial *serial, const std::vector<std::vector<float>> &queries, int start, int end, int top_k, std::vector<std::vector<int>> &results) {
+    __atomic_store_n(&ready, 1, __ATOMIC_SEQ_CST);
+    while (!__atomic_load_n(&start_flag, __ATOMIC_SEQ_CST))
+    {
+    }
+    
     for (int i = start; i < end; ++i) {
         SerialQueryExecutor query_executor(serial, static_cast<const void*>(queries[i].data()), FLAGS_top_k, FLAGS_node_num, FLAGS_pq_size);
         std::vector<int> result = query_executor.query();
@@ -126,8 +140,23 @@ float calculateRecall(const std::vector<std::vector<int>> &results, const std::v
 int main(int argc, char *argv[]) {
     gflags::ParseCommandLineFlags(&argc, &argv, true);
 
-    std::string base_file, query_file, groundtruth_file;
+    std::string base_file, query_file, groundtruth_file, output_file;
     std::string current_path = std::filesystem::current_path().string();
+
+    if (FLAGS_output_file.empty()) {
+        std::cerr << "Output file is not specified." << std::endl;
+        return 1;
+    }
+    // output_fileにパラメータをwrite
+    output_file = current_path + "/../benchmarks/results/" + FLAGS_output_file + ".csv";
+    std::ofstream ofs(output_file, std::ios::app);
+    if (ofs.tellp() == 0) {
+        ofs << "index_type,dataset_type,initial_num,posting_limit,connection_limit,insert_threads,search_threads,delete_archived,top_k,node_num,pq_size,initial_node_num,insert_throughput,insert_latency,all_vectors,unique_vectors,violated_vectors,search_throughput,search_latency,recall\n";
+    }
+    ofs << "serial," << FLAGS_dataset_type << "," << FLAGS_initial_num << "," << FLAGS_posting_limit << "," << FLAGS_connection_limit << "," 
+        << FLAGS_insert_threads << "," << FLAGS_search_threads << ",null," << FLAGS_top_k << "," << FLAGS_node_num << "," << FLAGS_pq_size << ",";
+    ofs.flush();
+    ofs.close();
 
     if (FLAGS_dataset_type == "siftsmall") {
         base_file = current_path + "/../benchmarks/datasets/siftsmall/siftsmall_base.fvecs";
@@ -137,6 +166,10 @@ int main(int argc, char *argv[]) {
         base_file = current_path + "/../benchmarks/datasets/sift/sift_base.fvecs";
         query_file = current_path + "/../benchmarks/datasets/sift/sift_query.fvecs";
         groundtruth_file = current_path + "/../benchmarks/datasets/sift/sift_groundtruth.ivecs";
+    } else if (FLAGS_dataset_type == "gist") {
+        base_file = current_path + "/../benchmarks/datasets/gist/gist_base.fvecs";
+        query_file = current_path + "/../benchmarks/datasets/gist/gist_query.fvecs";
+        groundtruth_file = current_path + "/../benchmarks/datasets/gist/gist_groundtruth.ivecs";
     } else {
         std::cerr << "Invalid dataset type: " << FLAGS_dataset_type << std::endl;
         return 1;
@@ -174,25 +207,50 @@ int main(int argc, char *argv[]) {
         insert_executor.insert();
     }
 
+    int initial_node_num = serial.getNodeNum();
+
+    bool start_flag = false;
+    std::vector<int> readys;
+    for (size_t i = 0; i < FLAGS_insert_threads; ++i)
+    {
+        readys.emplace_back(0);
+    }
+
+    std::vector<std::thread> threads;
+    int vectors_per_thread = (base_vectors.size() - FLAGS_initial_num) / FLAGS_insert_threads;
+    for (int i = 0; i < FLAGS_insert_threads; ++i) {
+        int start = FLAGS_initial_num + i * vectors_per_thread;
+        int end = (i == FLAGS_insert_threads - 1) ? base_vectors.size() : FLAGS_initial_num + (i + 1) * vectors_per_thread;
+        threads.emplace_back(insertVectors, i, std::ref(readys[i]), std::ref(start_flag), &serial, std::ref(base_vectors), start, end);
+    }
+
+    while (true)
+    {
+        bool failed = false;
+        for (auto &re : readys)
+        {
+            if (!__atomic_load_n(&re, __ATOMIC_SEQ_CST))
+            {
+                failed = true;
+                break;
+            }
+        }
+        if (!failed)
+        {
+            break;
+        }
+    }
+    __atomic_store_n(&start_flag, true, __ATOMIC_SEQ_CST);
+
     // スループット性能とレイテンシを計測
     auto start_time = std::chrono::high_resolution_clock::now();
 
-    std::vector<std::thread> threads;
-    int vectors_per_thread = (base_vectors.size() - FLAGS_initial_num) / FLAGS_num_threads;
-    for (int i = 0; i < FLAGS_num_threads; ++i) {
-        int start = FLAGS_initial_num + i * vectors_per_thread;
-        int end = (i == FLAGS_num_threads - 1) ? base_vectors.size() : FLAGS_initial_num + (i + 1) * vectors_per_thread;
-        threads.emplace_back(insertVectors, &serial, std::ref(base_vectors), start, end);
-    }
-
-    for (auto &thread : threads) {
-        thread.join();
-    }
+    for (auto &thread : threads) thread.join();
 
     auto end_time = std::chrono::high_resolution_clock::now();
     std::chrono::duration<double> elapsed = end_time - start_time;
 
-    std::cout << "Inserted " << serial.countAllVectors() << " vectors using " << FLAGS_num_threads << " threads in "
+    std::cout << "Inserted " << serial.countAllVectors() << " vectors using " << FLAGS_insert_threads << " threads in "
               << elapsed.count() << " seconds.\n";
     std::cout << "Throughput: " << base_vectors.size() / elapsed.count() << " vectors/second\n";
     std::cout << "Latency: " << elapsed.count() / base_vectors.size() << " seconds/vector\n";
@@ -200,17 +258,46 @@ int main(int argc, char *argv[]) {
     std::cout << "All vectors: " << serial.countAllVectors() << ": lost vectors: " << serial.countLostVectors() << std::endl;
     std::cout << "All vectors: " << serial.countAllVectors() << ": viloate vectors: " << serial.countViolateVectors(new L2Distance()) << std::endl;
 
+    ofs.open(output_file, std::ios::app);
+    ofs << initial_node_num << "," << base_vectors.size() / elapsed.count() << "," << elapsed.count() / base_vectors.size() << ","
+        << serial.countAllVectors() << "," << serial.countUniqueVectors() << "," << serial.countViolateVectors(new L2Distance()) << ",";
+    ofs.flush();
+    ofs.close();
+
+    readys.clear();
+    readys.resize(FLAGS_search_threads);
+    for (size_t i = 0; i < FLAGS_search_threads; ++i) { readys[i] = 0; }
+    __atomic_store_n(&start_flag, false, __ATOMIC_SEQ_CST);
     
     std::vector<std::vector<int>> results(query_vectors.size());
-    start_time = std::chrono::high_resolution_clock::now();
 
     std::vector<std::thread> search_threads;
-    int queries_per_thread = query_vectors.size() / FLAGS_num_threads;
-    for (int i = 0; i < FLAGS_num_threads; ++i) {
+    int queries_per_thread = query_vectors.size() / FLAGS_search_threads;
+    for (int i = 0; i < FLAGS_search_threads; ++i) {
         int start = i * queries_per_thread;
-        int end = (i == FLAGS_num_threads - 1) ? query_vectors.size() : (i + 1) * queries_per_thread;
-        search_threads.emplace_back(searchVectors, &serial, std::ref(query_vectors), start, end, FLAGS_top_k, std::ref(results));
+        int end = (i == FLAGS_search_threads - 1) ? query_vectors.size() : (i + 1) * queries_per_thread;
+        search_threads.emplace_back(searchVectors, i, std::ref(readys[i]), std::ref(start_flag), &serial, std::ref(query_vectors), start, end, FLAGS_top_k, std::ref(results));
     }
+
+    while (true)
+    {
+        bool failed = false;
+        for (auto &re : readys)
+        {
+            if (!__atomic_load_n(&re, __ATOMIC_SEQ_CST))
+            {
+                failed = true;
+                break;
+            }
+        }
+        if (!failed)
+        {
+            break;
+        }
+    }
+    __atomic_store_n(&start_flag, true, __ATOMIC_SEQ_CST);
+    start_time = std::chrono::high_resolution_clock::now();
+
     for (auto &thread : search_threads) {
         thread.join();
     }
@@ -218,7 +305,7 @@ int main(int argc, char *argv[]) {
     end_time = std::chrono::high_resolution_clock::now();
     elapsed = end_time - start_time;
 
-    std::cout << "Searched " << query_vectors.size() << " vectors using " << FLAGS_num_threads << " threads in "
+    std::cout << "Searched " << query_vectors.size() << " vectors using " << FLAGS_search_threads << " threads in "
               << elapsed.count() << " seconds.\n";
     std::cout << "Throughput: " << query_vectors.size() / elapsed.count() << " queries/second\n";
     std::cout << "Latency: " << elapsed.count() / query_vectors.size() << " seconds/query\n";
@@ -226,6 +313,11 @@ int main(int argc, char *argv[]) {
     // リコールを計算
     float recall = calculateRecall(results, groundtruth);
     std::cout << "Recall: " << recall << std::endl;
+
+    ofs.open(output_file, std::ios::app);
+    ofs << query_vectors.size() / elapsed.count() << "," << elapsed.count() / query_vectors.size() << "," << recall << "\n";
+    ofs.flush();
+    ofs.close();
 
     return 0;
 }

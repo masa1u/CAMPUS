@@ -54,6 +54,16 @@ public:
         }
         return count - indexed_ids.size();
     }
+    int countUniqueVectors(){
+        std::unordered_set<int> indexed_ids;
+        for (Node* node : all_nodes_) {
+            Entity **posting = node->getPosting();
+            for (int i = 0; i < node->getVectorNum(); ++i) {
+                indexed_ids.insert(posting[i]->id);
+            }
+        }
+        return indexed_ids.size();
+    }
     int countAllVectors() {
         int count = 0;
         for (Node *node : all_nodes_) {
