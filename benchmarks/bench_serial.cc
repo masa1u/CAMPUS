@@ -27,6 +27,8 @@ DEFINE_int32(top_k, 100, "Number of top k elements to search");
 DEFINE_int32(node_num, 10, "Number of nodes to search");
 DEFINE_int32(pq_size, 10, "Priority queue size");
 
+DEFINE_string(output_file, "", "Output csv file path");
+
 // データをL2正規化する関数
 void normalizeDataset(std::vector<std::vector<float>> &dataset) {
     for (auto &vec : dataset) {
@@ -128,8 +130,23 @@ float calculateRecall(const std::vector<std::vector<int>> &results, const std::v
 int main(int argc, char *argv[]) {
     gflags::ParseCommandLineFlags(&argc, &argv, true);
 
-    std::string base_file, query_file, groundtruth_file;
+    std::string base_file, query_file, groundtruth_file, output_file;
     std::string current_path = std::filesystem::current_path().string();
+
+    if (FLAGS_output_file.empty()) {
+        std::cerr << "Output file is not specified." << std::endl;
+        return 1;
+    }
+    // output_fileにパラメータをwrite
+    output_file = current_path + "/../benchmarks/results/" + FLAGS_output_file + ".csv";
+    std::ofstream ofs(output_file, std::ios::app);
+    if (ofs.tellp() == 0) {
+        ofs << "index_type,dataset_type,initial_num,posting_limit,connection_limit,insert_threads,search_threads,delete_archived,top_k,node_num,pq_size,initial_node_num,insert_throughput,insert_latency,all_vectors,unique_vectors,violated_vectors,search_throughput,search_latency,recall\n";
+    }
+    ofs << "serial," << FLAGS_dataset_type << "," << FLAGS_initial_num << "," << FLAGS_posting_limit << "," << FLAGS_connection_limit << "," 
+        << FLAGS_insert_threads << "," << FLAGS_search_threads << ",null," << FLAGS_top_k << "," << FLAGS_node_num << "," << FLAGS_pq_size << ",";
+    ofs.flush();
+    ofs.close();
 
     if (FLAGS_dataset_type == "siftsmall") {
         base_file = current_path + "/../benchmarks/datasets/siftsmall/siftsmall_base.fvecs";
@@ -180,6 +197,8 @@ int main(int argc, char *argv[]) {
         insert_executor.insert();
     }
 
+    int initial_node_num = serial.getNodeNum();
+
     // スループット性能とレイテンシを計測
     auto start_time = std::chrono::high_resolution_clock::now();
 
@@ -206,6 +225,11 @@ int main(int argc, char *argv[]) {
     std::cout << "All vectors: " << serial.countAllVectors() << ": lost vectors: " << serial.countLostVectors() << std::endl;
     std::cout << "All vectors: " << serial.countAllVectors() << ": viloate vectors: " << serial.countViolateVectors(new L2Distance()) << std::endl;
 
+    ofs.open(output_file, std::ios::app);
+    ofs << initial_node_num << "," << base_vectors.size() / elapsed.count() << "," << elapsed.count() / base_vectors.size() << ","
+        << serial.countAllVectors() << "," << serial.countUniqueVectors() << "," << serial.countViolateVectors(new L2Distance()) << ",";
+    ofs.flush();
+    ofs.close();
     
     std::vector<std::vector<int>> results(query_vectors.size());
     start_time = std::chrono::high_resolution_clock::now();
@@ -232,6 +256,11 @@ int main(int argc, char *argv[]) {
     // リコールを計算
     float recall = calculateRecall(results, groundtruth);
     std::cout << "Recall: " << recall << std::endl;
+
+    ofs.open(output_file, std::ios::app);
+    ofs << query_vectors.size() / elapsed.count() << "," << elapsed.count() / query_vectors.size() << "," << recall << "\n";
+    ofs.flush();
+    ofs.close();
 
     return 0;
 }
