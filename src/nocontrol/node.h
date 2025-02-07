@@ -3,6 +3,7 @@
 
 #include "entity.h"
 #include <vector>
+#include <algorithm>
 
 class Node {
 public:
