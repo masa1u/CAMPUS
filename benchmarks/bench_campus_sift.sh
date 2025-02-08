@@ -31,7 +31,7 @@ run_benchmarks() {
 
     for i in {1..3}; do
         # 実行コマンド
-        CMD="./benchmarks/bench_serial --dataset_type=${dataset_type} --initial_num=${initial_num} --posting_limit=${posting_limit} --connection_limit=${connection_limit} --insert_threads=${insert_threads} --search_threads=${search_threads} --top_k=${top_k} --node_num=${node_num} --pq_size=${node_num} --output_file=${TIMESTAMP} --delete_archived=${delete_archived}"
+        CMD="./benchmarks/bench_campus --dataset_type=${dataset_type} --initial_num=${initial_num} --posting_limit=${posting_limit} --connection_limit=${connection_limit} --insert_threads=${insert_threads} --search_threads=${search_threads} --top_k=${top_k} --node_num=${node_num} --pq_size=${node_num} --output_file=${TIMESTAMP} --delete_archived=${delete_archived}"
 
         # コマンドを表示して実行
         echo "Running command: ${CMD}"
