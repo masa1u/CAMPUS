@@ -97,6 +97,7 @@ void insertVectors(int thread_id, int &ready, const bool &start_flag, Serial *se
     __atomic_store_n(&ready, 1, __ATOMIC_SEQ_CST);
     while (!__atomic_load_n(&start_flag, __ATOMIC_SEQ_CST))
     {
+	    std::this_thread::yield();
     }
 
     for (int i = start; i < end; ++i) {
@@ -110,6 +111,7 @@ void searchVectors(int thread_id, int &ready, const bool &start_flag, Serial *se
     __atomic_store_n(&ready, 1, __ATOMIC_SEQ_CST);
     while (!__atomic_load_n(&start_flag, __ATOMIC_SEQ_CST))
     {
+	    std::this_thread::yield();
     }
     
     for (int i = start; i < end; ++i) {
@@ -246,7 +248,10 @@ int main(int argc, char *argv[]) {
     // スループット性能とレイテンシを計測
     auto start_time = std::chrono::high_resolution_clock::now();
 
-    for (auto &thread : threads) thread.join();
+    for (auto &thread : threads)
+    {
+	    thread.join();
+    }
 
     auto end_time = std::chrono::high_resolution_clock::now();
     std::chrono::duration<double> elapsed = end_time - start_time;
