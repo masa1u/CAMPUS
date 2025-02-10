@@ -122,20 +122,6 @@ void searchVectors(int thread_id, int &ready, const bool &start_flag, Campus *ca
 }
 
 // リコールを計算する関数
-// float calculateRecall(const std::vector<std::vector<int>> &results, const std::vector<std::vector<int>> &groundtruth) {
-//     int correct = 0;
-//     int total = 0;
-//     for (size_t i = 0; i < results.size(); ++i) {
-//         std::unordered_set<int> groundtruth_set(groundtruth[i].begin(), groundtruth[i].end());
-//         for (int id : results[i]) {
-//             if (groundtruth_set.find(id) != groundtruth_set.end()) {
-//                 ++correct;
-//             }
-//         }
-//         total += groundtruth[i].size();
-//     }
-//     return static_cast<float>(correct) / total;
-// }
 float calculateRecall(const std::vector<std::vector<int>> &results, const std::vector<std::vector<int>> &groundtruth) {
     int correct = 0;
     int total = 0;
