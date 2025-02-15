@@ -1,7 +1,7 @@
 # CAMPUS: Cluster Assignment and Management with Parallel Updates for Scalability
 ## clone
 ```
-git clone git@github.com:masa1u/Campus.git
+git clone --recursive git@github.com:masa1u/Campus.git
 ```
 
 ## dataset preparation
@@ -10,11 +10,18 @@ cd benchmarks/datasets
 ```
 Download the required dataset from http://corpus-texmex.irisa.fr
 
-## make
+## build
 ```
 mkdir build
 cd build
 cmake ..
+make
+```
+
+### build with Faiss
+Before building the project, ensure that OpenMP is installed on your system.
+```
+cmake -DBUILD_FAISS=ON ..
 make
 ```
 
